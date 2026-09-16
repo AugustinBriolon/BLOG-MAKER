@@ -10,6 +10,61 @@ export type KeywordHit = {
   kind: "unigram" | "bigram";
 };
 
+/** Tokens / bigrammes trop génériques pour le domain guess et le ranking. */
+const NOISE_TOKENS = new Set(
+  [
+    "com",
+    "www",
+    "http",
+    "https",
+    "html",
+    "org",
+    "net",
+    "io",
+    "github",
+    "linkedin",
+    "twitter",
+    "facebook",
+    "instagram",
+    "youtube",
+    "cookie",
+    "cookies",
+    "account",
+    "accounts",
+    "user",
+    "users",
+    "login",
+    "password",
+    "agreement",
+    "privacy",
+    "policy",
+    "terms",
+    "month",
+    "included",
+    "click",
+    "here",
+    "learn",
+    "more",
+    "home",
+    "page",
+    "pages",
+    "menu",
+    "footer",
+    "header",
+    "nav",
+    "navigation",
+    "cdn",
+    "await",
+    "domain",
+    "example",
+  ].map((t) => t.toLowerCase()),
+);
+
+const HOST_FRAGMENTS = new Set(["com", "www", "org", "net", "io", "github"]);
+
+const NOISE_PHRASE_RE =
+  /\b(user account|user accounts|service agreement|privacy policy|cookie policy|month included|github com|com ovh|example domain|await sandbox|tan stack|hit css|becomes first|firefox support|general use|personal data|project vercel|copy link|link heading|holiday pay)\b/i;
+
 /** Fold for stopword matching only — display tokens keep accents (NFC). */
 function fold(value: string): string {
   return value
@@ -119,7 +174,32 @@ function scoreHit(
       }
     }
   }
+  if (isNoiseTerm(term)) score *= 0.18;
   return score;
+}
+
+function isNoiseTerm(term: string): boolean {
+  const folded = fold(term);
+  if (NOISE_PHRASE_RE.test(term)) return true;
+  const parts = folded.split(/\s+/);
+  if (parts.length === 1) return NOISE_TOKENS.has(parts[0]);
+  if (parts.every((p) => NOISE_TOKENS.has(p))) return true;
+  // TLD / host fragment bigrams: "com ovh", "github com"
+  if (parts.some((p) => HOST_FRAGMENTS.has(p))) return true;
+  return false;
+}
+
+/** Keep terms that can describe a métier (for domain guess). */
+function isDomainSeedCandidate(hit: KeywordHit): boolean {
+  if (isNoiseTerm(hit.term)) return false;
+  const parts = fold(hit.term).split(/\s+/);
+  if (parts.some((p) => NOISE_TOKENS.has(p))) return false;
+  // Prefer multi-word métier phrases; allow strong unigrams
+  if (hit.kind === "unigram") {
+    if (hit.term.length < 5) return false;
+    if (hit.count < 8) return false;
+  }
+  return true;
 }
 
 function toRankedHits(
@@ -226,23 +306,56 @@ export function inferDomain(
   keywords: KeywordHit[],
   siteHost: string,
 ): string {
-  const phrases = keywords.filter((k) => k.kind === "bigram").slice(0, 10);
-  const unigrams = keywords.filter((k) => k.kind === "unigram").slice(0, 10);
-
   const brandish = siteHost
     .replace(/^www\./, "")
     .split(".")[0]
     ?.replace(/[-_]/g, " ");
 
-  const domainSeeds = [
-    ...phrases.slice(0, 3).map((k) => k.term),
-    ...unigrams.slice(0, 3).map((k) => k.term),
-  ].slice(0, 3);
+  const seeds = keywords
+    .filter(isDomainSeedCandidate)
+    .slice(0, 16)
+    .sort(
+      (a, b) =>
+        scoreHit(b.term, b.count, b.kind) - scoreHit(a.term, a.count, a.kind) ||
+        b.count - a.count,
+    );
 
-  if (domainSeeds.length >= 2) {
-    return `Site orienté « ${domainSeeds.join(", ")} »${
-      brandish ? ` (${brandish})` : ""
-    }`;
+  // Prefer bigrams, then fill with unigrams
+  const picked: string[] = [];
+  const seen = new Set<string>();
+  for (const hit of seeds.filter((k) => k.kind === "bigram")) {
+    if (picked.length >= 3) break;
+    const key = fold(hit.term);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(hit.term);
+  }
+  for (const hit of seeds.filter((k) => k.kind === "unigram")) {
+    if (picked.length >= 3) break;
+    const key = fold(hit.term);
+    if (seen.has(key)) continue;
+    // Skip unigram already covered by a phrase
+    if (picked.some((p) => coversUnigram(p, hit.term))) continue;
+    seen.add(key);
+    picked.push(hit.term);
+  }
+
+  if (picked.length >= 2) {
+    const [a, b, c] = picked;
+    if (c) {
+      return brandish
+        ? `${brandish} — activité autour de « ${a} », « ${b} » et « ${c} »`
+        : `Activité autour de « ${a} », « ${b} » et « ${c} »`;
+    }
+    return brandish
+      ? `${brandish} — spécialisé dans « ${a} » et « ${b} »`
+      : `Spécialisé dans « ${a} » et « ${b} »`;
+  }
+
+  if (picked.length === 1) {
+    return brandish
+      ? `${brandish} — focus « ${picked[0]} »`
+      : `Focus « ${picked[0]} »`;
   }
 
   if (brandish) {

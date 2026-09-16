@@ -6,9 +6,11 @@ import {
   fetchText,
   sleep,
   FETCH_GAP_MS,
+  MAX_SITEMAP_RAW,
   MAX_SITEMAP_URLS,
   originFromUrl,
 } from "./http";
+import { prioritizePages } from "./page-priority";
 import type { RobotsPolicy } from "./robots";
 
 function extractLocs(xml: string): string[] {
@@ -33,6 +35,15 @@ function sameHost(candidate: string, origin: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Préfère les sitemaps produit/pages aux sitemaps auteurs / légal. */
+function scoreSitemapChild(url: string): number {
+  const u = url.toLowerCase();
+  let score = 0;
+  if (/author|auteurs?|tag|category|legal|privacy|cookie/.test(u)) score += 50;
+  if (/page|product|produit|post|blog|content|main|fr/.test(u)) score -= 20;
+  return score;
 }
 
 async function collectFromSitemap(
@@ -60,12 +71,15 @@ async function collectFromSitemap(
   if (locs.length === 0) return [];
 
   if (isSitemapIndex(text)) {
+    const children = [...locs].sort(
+      (a, b) => scoreSitemapChild(a) - scoreSitemapChild(b),
+    );
     const nested: string[] = [];
-    for (const child of locs.slice(0, 5)) {
+    for (const child of children.slice(0, 8)) {
       if (!sameHost(child, origin) && !child.includes("sitemap")) continue;
       const more = await collectFromSitemap(child, origin, depth + 1);
       nested.push(...more);
-      if (nested.length >= MAX_SITEMAP_URLS) break;
+      if (nested.length >= MAX_SITEMAP_RAW) break;
     }
     return nested;
   }
@@ -73,13 +87,15 @@ async function collectFromSitemap(
   return locs.filter((loc) => sameHost(loc, origin));
 }
 
-/** Découverte légère : liens internes sur la homepage. */
-async function discoverFromHomepage(origin: string): Promise<string[]> {
-  const { status, text } = await fetchText(origin);
+/** Découverte légère : liens internes sur une page HTML (homepage ou landing). */
+async function discoverLinksFromPage(pageUrl: string): Promise<string[]> {
+  const { status, text } = await fetchText(pageUrl);
   await sleep(FETCH_GAP_MS);
-  if (status >= 400) return [origin];
+  if (status >= 400) return [pageUrl];
 
-  const hrefs = new Set<string>([origin]);
+  const origin = originFromUrl(new URL(pageUrl));
+  const hrefs = new Set<string>([pageUrl, origin]);
+
   const re = /href\s*=\s*["']([^"'#]+)["']/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
@@ -92,7 +108,7 @@ async function discoverFromHomepage(origin: string): Promise<string[]> {
       continue;
     }
     try {
-      const absolute = new URL(raw, origin);
+      const absolute = new URL(raw, pageUrl);
       if (absolute.origin !== new URL(origin).origin) continue;
       absolute.hash = "";
       absolute.search = "";
@@ -106,6 +122,31 @@ async function discoverFromHomepage(origin: string): Promise<string[]> {
   }
 
   return [...hrefs];
+}
+
+async function discoverFromHomepage(origin: string): Promise<string[]> {
+  return discoverLinksFromPage(origin);
+}
+
+function rankDiscoveryPool(rawUrls: string[], siteUrl: URL): string[] {
+  const parsed = rawUrls
+    .map((u) => {
+      try {
+        return new URL(u);
+      } catch {
+        return null;
+      }
+    })
+    .filter((u): u is URL => Boolean(u));
+
+  // Toujours injecter l'URL de départ dans le pool
+  if (!parsed.some((u) => u.toString() === siteUrl.toString())) {
+    parsed.unshift(siteUrl);
+  }
+
+  return prioritizePages(parsed, siteUrl, MAX_SITEMAP_URLS).map((u) =>
+    u.toString(),
+  );
 }
 
 export type PageDiscovery = {
@@ -133,13 +174,24 @@ export async function discoverPages(
     tried.add(sitemapUrl);
     try {
       const urls = await collectFromSitemap(sitemapUrl, origin);
-      const unique = [...new Set(urls)].slice(0, MAX_SITEMAP_URLS);
+      const unique = [...new Set(urls)].slice(0, MAX_SITEMAP_RAW);
       if (unique.length > 0) {
+        // Enrichit avec les liens de la landing saisie (souvent /fr/ produit)
+        let merged = unique;
+        try {
+          const fromStart = await discoverLinksFromPage(siteUrl.toString());
+          merged = [...new Set([...fromStart, ...unique])].slice(
+            0,
+            MAX_SITEMAP_RAW,
+          );
+        } catch {
+          // keep sitemap-only pool
+        }
         return {
           source: robots.sitemapHints.includes(sitemapUrl)
             ? "robots-sitemap"
             : "sitemap",
-          urls: unique,
+          urls: rankDiscoveryPool(merged, siteUrl),
           warnings,
         };
       }
@@ -157,7 +209,7 @@ export async function discoverPages(
     if (discovered.length > 1) {
       return {
         source: "homepage-links",
-        urls: discovered.slice(0, MAX_SITEMAP_URLS),
+        urls: rankDiscoveryPool(discovered.slice(0, MAX_SITEMAP_RAW), siteUrl),
         warnings,
       };
     }
