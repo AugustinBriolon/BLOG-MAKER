@@ -11,6 +11,10 @@ import type { TopicSuggestion } from "@/lib/ai/topics";
 import { NumberFlowValue } from "@/components/number-flow-value";
 import { StatusSwap } from "@/components/status-swap";
 import { MarkdownReader } from "@/components/markdown-reader";
+import {
+  EditorialVolumePlan,
+  EditorialVolumePlanSkeleton,
+} from "@/components/editorial-volume-plan";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -177,6 +181,19 @@ function KeywordsSkeleton() {
   );
 }
 
+/** Matches collapsed Pages header (default closed) */
+function PagesSkeleton() {
+  return (
+    <div
+      className="flex items-center justify-between gap-3"
+      aria-busy="true"
+    >
+      <Skeleton className="h-4 w-14" />
+      <Skeleton className="h-4 w-16" />
+    </div>
+  );
+}
+
 /** Matches draft pre block rhythm */
 function DraftSkeleton() {
   return (
@@ -313,6 +330,7 @@ export default function Home() {
   const [draftError, setDraftError] = useState<UiError | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [keywordsOpen, setKeywordsOpen] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
 
   const viewResult = result ?? (demoDraft ? DEMO_RESULT : null);
   const viewTopics = topics.length > 0 ? topics : demoDraft ? DEMO_TOPICS : [];
@@ -463,6 +481,7 @@ export default function Home() {
     setDraftError(null);
     setShowAllKeywords(false);
     setKeywordsOpen(false);
+    setPagesOpen(false);
 
     try {
       const response = await fetch("/api/analyze?stream=1", {
@@ -577,6 +596,7 @@ export default function Home() {
 
         {showWorkspace && (
           <section className="mt-12 space-y-10">
+            {/* 1. Domaine */}
             {analyzing && !viewResult ? (
               <DomainSkeleton />
             ) : viewResult ? (
@@ -603,6 +623,14 @@ export default function Home() {
               </div>
             ) : null}
 
+            {/* 2. Plan éditorial (volume, sans IA) */}
+            {analyzing && !viewResult ? (
+              <EditorialVolumePlanSkeleton />
+            ) : viewResult ? (
+              <EditorialVolumePlan />
+            ) : null}
+
+            {/* 3. Sujets + 4. Brouillon */}
             {analyzing && !viewResult ? (
               <TopicsSkeleton withLabel />
             ) : viewResult ? (
@@ -708,6 +736,7 @@ export default function Home() {
               </div>
             ) : null}
 
+            {/* 5. Mots-clés (évidence, replié) */}
             {analyzing && !viewResult ? (
               <KeywordsSkeleton />
             ) : viewResult ? (
@@ -776,6 +805,7 @@ export default function Home() {
               </Collapsible>
             ) : null}
 
+            {/* 6. Blog détecté (secondaire) */}
             {viewResult && viewResult.blogPosts.length > 0 && (
               <div>
                 <SectionLabel>Blog détecté</SectionLabel>
@@ -796,26 +826,46 @@ export default function Home() {
               </div>
             )}
 
-            {viewResult && viewResult.pageSamples.length > 0 && (
-              <div>
-                <SectionLabel>Pages</SectionLabel>
-                <Separator className="my-3" />
-                <ul className="space-y-2">
-                  {viewResult.pageSamples.map((page) => (
-                    <li key={page.url} className="text-sm">
-                      <a
-                        href={page.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-foreground underline-offset-4 transition-colors hover:text-chart-3 hover:underline"
-                      >
-                        {page.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* 7. Pages (échantillon, replié) */}
+            {analyzing && !viewResult ? (
+              <PagesSkeleton />
+            ) : viewResult && viewResult.pageSamples.length > 0 ? (
+              <Collapsible open={pagesOpen} onOpenChange={setPagesOpen}>
+                <div className="flex items-center justify-between gap-3">
+                  <SectionLabel>Pages</SectionLabel>
+                  <CollapsibleTrigger
+                    className={cn(
+                      "inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
+                    )}
+                  >
+                    {pagesOpen ? "Masquer" : "Afficher"}
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)]",
+                        pagesOpen && "rotate-180",
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <Separator className="my-3" />
+                  <ul className="space-y-2">
+                    {viewResult.pageSamples.map((page) => (
+                      <li key={page.url} className="text-sm">
+                        <a
+                          href={page.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-foreground underline-offset-4 transition-colors hover:text-chart-3 hover:underline"
+                        >
+                          {page.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
 
             {viewResult && viewResult.warnings.length > 0 && (
               <ul className="space-y-1 text-sm text-muted-foreground">

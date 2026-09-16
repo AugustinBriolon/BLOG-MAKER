@@ -50,6 +50,19 @@ Le ranking reste **scoré** (bigrammes, accents, bruit) ; les compteurs UI refl�
 - Défaut : `openai/gpt-4.1-nano` via **Vercel AI Gateway**
 - Sans `AI_GATEWAY_API_KEY` : `/api/analyze` OK ; topics/draft → `unavailable` (échec gracieux pour l’UI)
 
+## Ordre des sections résultats
+
+Après analyse, l’UI suit ce narratif SaaS :
+
+1. **Domaine** — positionnement du site
+2. **Plan éditorial** — volume (semaines × articles/semaine, sans IA)
+3. **Sujets** — propositions IA
+4. **Brouillon** — draft d’un sujet sélectionné
+5. **Mots-clés** — évidence, replié par défaut
+6. **Pages** — échantillon, replié par défaut
+
+(`Blog détecté` peut apparaître entre mots-clés et pages s’il y a des posts.)
+
 ## Variables d’environnement
 
 Copier `.env.example` vers `.env.local` :
@@ -85,7 +98,7 @@ curl -s -X POST http://localhost:3000/api/analyze \
 | --- | --- |
 | `lib/analyze/` | robots, sitemap, http poli, extract, keywords, priorisation URL, blog-posts |
 | `lib/ai/` | topics, draft, contexte date (anti spam année) |
-| `components/` | lecteur markdown, status swap, Number Flow, UI shadcn |
+| `components/` | lecteur markdown, status swap, Number Flow, plan volume, UI shadcn |
 | `pages/api/` | `analyze`, `topics`, `draft` |
 | `styles/globals.css` | tokens + styles POC (dont `.button-02`) |
 
