@@ -1,4 +1,7 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
+/**
+ * Reliquat du starter Next.js — route API exemple non utilisée par Blog Maker.
+ * Retourne un JSON statique { name: "John Doe" }.
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 
 type Data = {
