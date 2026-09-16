@@ -2,6 +2,11 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
 import {
+  formatDatePromptBlock,
+  getPromptDateContext,
+  refreshOutdatedYearsInTitle,
+} from "./date-context";
+import {
   DEFAULT_TOPICS_MODEL,
   hasAiCredentials,
   missingAiKeyMessage,
@@ -70,13 +75,19 @@ export async function generateArticleDraft(
     .map((p) => `- ${p.title}`)
     .join("\n");
 
+  const dateCtx = getPromptDateContext();
+  const dateBlock = formatDatePromptBlock(dateCtx);
+  const safeTitle = refreshOutdatedYearsInTitle(title, dateCtx.year);
+
   const prompt = `Tu rédiges un PREMIER BROUILLON d'article de blog SEO (français) pour Blog Maker.
 Ce n'est PAS un roman : brouillon solide, concis, prêt à itérer.
 
-Titre imposé : ${title}
+${dateBlock}
+
+Titre imposé : ${safeTitle}
 
 Structure markdown obligatoire :
-1. # ${title}
+1. # ${safeTitle}
 2. ## Plan (liste à puces de 4–6 points)
 3. Un paragraphe d'introduction (3–5 phrases)
 4. 3 à 5 sections ## avec 1–2 paragraphes chacune (conseils concrets)
@@ -88,7 +99,7 @@ Contraintes :
 - Mots-clés utiles : ${topKeywords || "(n/a)"}
 - Évite de dupliquer ces contenus existants :
 ${existing || "(aucun)"}
-- Ton professionnel, clair, sans emoji
+- Ton professionnel, clair, sans emoji ; cadrage actuel (${dateCtx.year})
 - Sortie : UNIQUEMENT le markdown dans le champ prévu`;
 
   try {
@@ -106,7 +117,7 @@ ${existing || "(aucun)"}
     const markdown = (output?.markdown ?? "").trim();
     if (!markdown) {
       return {
-        title,
+        title: safeTitle,
         markdown: "",
         model,
         error: "Brouillon vide renvoyé par le modèle.",
@@ -114,13 +125,13 @@ ${existing || "(aucun)"}
       };
     }
 
-    return { title, markdown, model };
+    return { title: safeTitle, markdown, model };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Génération impossible";
     console.error("[draft]", message);
     return {
-      title,
+      title: safeTitle,
       markdown: "",
       model,
       error: "Impossible de générer le brouillon pour le moment.",

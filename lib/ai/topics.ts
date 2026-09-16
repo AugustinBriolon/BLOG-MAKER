@@ -1,6 +1,11 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
+import {
+  formatDatePromptBlock,
+  getPromptDateContext,
+  refreshOutdatedYearsInTitle,
+} from "./date-context";
 
 export const MAX_AI_TOPICS = 3;
 
@@ -91,18 +96,26 @@ export async function generateTopicTitles(
     .map((p) => `- ${p.title} (${p.url})`)
     .join("\n");
 
+  // Cheap first fix for “actualité” SEO: ground the cheap model in today’s date
+  // rather than upgrading to a fully up-to-date (costlier) model.
+  const dateCtx = getPromptDateContext();
+  const dateBlock = formatDatePromptBlock(dateCtx);
+
   const prompt = `Tu es un stratège SEO francophone pour Blog Maker.
 Propose entre 1 et ${MAX_AI_TOPICS} sujets de blog.
 
+${dateBlock}
+
 Pour chaque sujet, fournis :
-- title : titre d'article concret
+- title : titre d'article concret et actuel (année ${dateCtx.year} si une année est citée)
 - reason : une demi-phrase (max ~20 mots) expliquant l'opportunité SEO ou l'écart vs le blog existant
 
 Contraintes :
-- Français, orientés SEO
+- Français, orientés SEO, cadrage d'actualité / timely pour le domaine
 - Alignés domaine + mots-clés
 - Ne duplique PAS les contenus déjà détectés
 - Pas d'emoji, pas de numérotation
+- Interdit : titres datés d'années périmées (ex. « … en 2023 »)
 
 Site : ${input.host}
 Domaine inféré : ${input.domainGuess}
@@ -124,7 +137,10 @@ ${existing || "(aucun article blog détecté)"}`;
 
     const topics = (output?.topics ?? [])
       .map((t) => ({
-        title: t.title.trim().replace(/^["«]|["»]$/g, ""),
+        title: refreshOutdatedYearsInTitle(
+          t.title.trim().replace(/^["«]|["»]$/g, ""),
+          dateCtx.year,
+        ),
         reason: t.reason.trim().replace(/^["«]|["»]$/g, ""),
       }))
       .filter((t) => t.title.length >= 8)

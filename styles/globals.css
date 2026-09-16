@@ -315,11 +315,11 @@
 }
 
 .status-swap__line--out {
-  animation: status-swap-out 0.45s var(--ease-out-quart) forwards;
+  animation: status-swap-out 0.75s var(--ease-out-quart) forwards;
 }
 
 .status-swap__line--enter {
-  animation: status-swap-in 0.45s var(--ease-out-quart) forwards;
+  animation: status-swap-in 0.75s var(--ease-out-quart) forwards;
 }
 
 @keyframes status-swap-out {
