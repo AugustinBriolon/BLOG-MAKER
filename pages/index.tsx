@@ -3,6 +3,8 @@ import { FormEvent, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { AnalyzeResult } from "@/lib/analyze";
 import type { TopicSuggestion } from "@/lib/ai/topics";
+import { NumberFlowValue } from "@/components/number-flow-value";
+import { StatusSwap } from "@/components/status-swap";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -32,7 +34,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+    <p className="text-xs font-medium uppercase text-muted-foreground">
       {children}
     </p>
   );
@@ -63,57 +65,104 @@ function StatusBlock({
   );
 }
 
+/** Matches Domaine: label + text-2xl title + h-5 badges row */
 function DomainSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-3 w-24" />
-      <Skeleton className="h-8 w-full max-w-xl" />
-      <div className="grid max-w-md grid-cols-2 gap-3 pt-2">
-        <Skeleton className="h-12" />
-        <Skeleton className="h-12" />
+    <div aria-busy="true">
+      <Skeleton className="h-4 w-16" />
+      <Skeleton className="mt-2 h-8 w-[min(100%,28rem)]" />
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Skeleton className="h-5 w-16 rounded-4xl" />
+        <Skeleton className="h-5 w-28 rounded-4xl" />
       </div>
     </div>
   );
 }
 
+/** Matches topic cards: badge row + title + reason inside padded bordered block */
+function TopicsSkeleton({ withLabel = false }: { withLabel?: boolean }) {
+  return (
+    <div aria-busy="true">
+      {withLabel ? <Skeleton className="h-4 w-14" /> : null}
+      <ul className={cn("space-y-3", withLabel ? "mt-4" : undefined)}>
+        {[0, 1, 2].map((i) => (
+          <li key={i}>
+            <div
+              className="w-full rounded-xl border border-transparent px-4 py-3"
+              style={{ opacity: 1 - i * 0.12 }}
+            >
+              <Skeleton className="h-5 w-14 rounded-4xl" />
+              <Skeleton
+                className="mt-2 h-6"
+                style={{ width: `${92 - i * 14}%` }}
+              />
+              <Skeleton
+                className="mt-1 h-4"
+                style={{ width: `${72 - i * 10}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Matches collapsed Mots-clés header (default closed) */
 function KeywordsSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-3 w-28" />
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="flex items-center justify-between gap-4 py-1">
-          <Skeleton
-            className="h-3"
-            style={{ width: `${40 + ((i * 9) % 40)}%` }}
-          />
-          <Skeleton className="h-3 w-8" />
-        </div>
-      ))}
+    <div
+      className="flex items-center justify-between gap-3"
+      aria-busy="true"
+    >
+      <Skeleton className="h-4 w-20" />
+      <Skeleton className="h-4 w-16" />
     </div>
   );
 }
 
-function TopicsSkeleton() {
-  return (
-    <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-16 w-full max-w-lg" />
-      <Skeleton className="h-16 w-4/5 max-w-md" />
-      <Skeleton className="h-16 w-3/5 max-w-sm" />
-    </div>
-  );
-}
-
+/** Matches draft pre block rhythm */
 function DraftSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-6 w-2/3" />
+    <div
+      className="mt-4 space-y-3 rounded-xl border border-border bg-background/70 p-4"
+      aria-busy="true"
+    >
+      <Skeleton className="h-5 w-3/5" />
+      <Skeleton className="h-4 w-2/5" />
       <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-[92%]" />
+      <Skeleton className="h-3 w-[78%]" />
+      <Skeleton className="mt-2 h-5 w-1/3" />
       <Skeleton className="h-3 w-full" />
-      <Skeleton className="h-3 w-4/5" />
-      <Skeleton className="mt-4 h-5 w-1/3" />
+      <Skeleton className="h-3 w-[88%]" />
+      <Skeleton className="mt-2 h-5 w-2/5" />
       <Skeleton className="h-3 w-full" />
-      <Skeleton className="h-3 w-5/6" />
+      <Skeleton className="h-3 w-[70%]" />
     </div>
+  );
+}
+
+function AnalyzeStatus({ progress }: { progress: CrawlProgress }) {
+  const isCrawl = progress.phase === "crawl" && progress.total > 0;
+  const lineKey = isCrawl ? "crawl" : `phase:${progress.phase}:${progress.label}`;
+
+  return (
+    <StatusSwap
+      lineKey={lineKey}
+      className="mt-4 text-sm text-muted-foreground"
+    >
+      {isCrawl ? (
+        <span className="inline-flex items-baseline gap-0.5">
+          <NumberFlowValue value={progress.done} />
+          <span>/</span>
+          <span className="tabular-nums">{progress.total}</span>
+          <span className="ml-1">pages…</span>
+        </span>
+      ) : (
+        <span>{progress.label}</span>
+      )}
+    </StatusSwap>
   );
 }
 
@@ -411,7 +460,7 @@ export default function Home() {
 
       <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-24 pt-14 sm:px-8 sm:pb-16 sm:pt-20">
         <header className="animate-rise">
-          <p className="font-heading text-5xl font-bold tracking-tight text-foreground sm:text-6xl">
+          <p className="font-heading text-5xl font-bold text-foreground sm:text-6xl">
             Blog Maker
           </p>
         </header>
@@ -447,16 +496,9 @@ export default function Home() {
           </button>
         </form>
 
-        {analyzing && progress && (
-          <p
-            className="mt-4 text-sm text-muted-foreground"
-            aria-live="polite"
-          >
-            {progress.phase === "crawl" && progress.total > 0
-              ? `${progress.done}/${progress.total} pages…`
-              : progress.label}
-          </p>
-        )}
+        {analyzing && progress ? (
+          <AnalyzeStatus progress={progress} />
+        ) : null}
 
         {error && !analyzing && (
           <StatusBlock
@@ -494,12 +536,8 @@ export default function Home() {
               </div>
             ) : null}
 
-            {/* Sujets above keywords — SaaS value first */}
             {analyzing && !result ? (
-              <div>
-                <Skeleton className="mb-4 h-3 w-20" />
-                <TopicsSkeleton />
-              </div>
+              <TopicsSkeleton withLabel />
             ) : result ? (
               <div>
                 <SectionLabel>Sujets</SectionLabel>
@@ -530,7 +568,7 @@ export default function Home() {
                             <div className="flex flex-wrap items-center gap-2">
                               <Badge
                                 variant="secondary"
-                                className="text-[10px] uppercase tracking-wide"
+                                className="text-[10px] uppercase"
                               >
                                 proposé
                               </Badge>
@@ -589,9 +627,7 @@ export default function Home() {
                   <div className="mt-8">
                     <SectionLabel>Brouillon</SectionLabel>
                     {draftLoading ? (
-                      <div className="mt-4">
-                        <DraftSkeleton />
-                      </div>
+                      <DraftSkeleton />
                     ) : draftError ? (
                       <StatusBlock
                         message={draftError.message}
@@ -607,7 +643,6 @@ export default function Home() {
               </div>
             ) : null}
 
-            {/* Keywords secondary / collapsible */}
             {analyzing && !result ? (
               <KeywordsSkeleton />
             ) : result ? (

@@ -298,6 +298,64 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* Chatbot-style status line swap (ease-out-quart, match .button-02) */
+.status-swap {
+  overflow: hidden;
+  min-height: 1.25rem;
+}
+
+.status-swap__track {
+  position: relative;
+  display: grid;
+}
+
+.status-swap__line {
+  grid-area: 1 / 1;
+  line-height: 1.25rem;
+}
+
+.status-swap__line--out {
+  animation: status-swap-out 0.45s var(--ease-out-quart) forwards;
+}
+
+.status-swap__line--enter {
+  animation: status-swap-in 0.45s var(--ease-out-quart) forwards;
+}
+
+@keyframes status-swap-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-110%);
+    opacity: 0;
+  }
+}
+
+@keyframes status-swap-in {
+  from {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-swap__line--out,
+  .status-swap__line--enter {
+    animation: none;
+  }
+}
+
+number-flow {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
 .keyword-row {
   display: flex;
   align-items: baseline;
