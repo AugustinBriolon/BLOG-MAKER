@@ -108,6 +108,7 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
 
   const { keywords, totalSignificantTokens } = analyzeKeywords(corpus, {
     topN: 40,
+    siteHost: siteUrl.hostname,
   });
 
   if (keywords.length === 0) {

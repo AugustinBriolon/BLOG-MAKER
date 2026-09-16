@@ -53,13 +53,17 @@ export function extractPageContent(
     $("body").text();
 
   const text = mainCandidate
+    .replace(/\u00AD/g, "") // soft hyphen — join, never space-split
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/\u00a0/g, " ")
-    .replace(/([a-zà-ÿ])([A-ZÀ-Ÿ])/g, "$1 $2")
-    .replace(/([A-Za-z])(\d)/g, "$1 $2")
-    .replace(/(\d)([A-Za-z])/g, "$1 $2")
+    // camelCase only (do NOT use À-Ÿ ranges — they swallow lowercase accents)
+    .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
+    .replace(/(\p{L})(\d)/gu, "$1 $2")
+    .replace(/(\d)(\p{L})/gu, "$1 $2")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
+    .normalize("NFC")
     .trim();
 
   const wordCount = text

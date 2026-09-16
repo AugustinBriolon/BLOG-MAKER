@@ -80,12 +80,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<UiError | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [showAllKeywords, setShowAllKeywords] = useState(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError(null);
     setResult(null);
+    setShowAllKeywords(false);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -215,7 +217,10 @@ export default function Home() {
                   Mots-clés
                 </h2>
                 <ol className="mt-4">
-                  {result.keywords.map((kw, index) => (
+                  {(showAllKeywords
+                    ? result.keywords
+                    : result.keywords.slice(0, 10)
+                  ).map((kw, index) => (
                     <li
                       key={`${kw.kind}-${kw.term}`}
                       className="keyword-row text-sm"
@@ -232,6 +237,18 @@ export default function Home() {
                     </li>
                   ))}
                 </ol>
+                {result.keywords.length > 10 && (
+                  <button
+                    type="button"
+                    className="voir-plus"
+                    onClick={() => setShowAllKeywords((v) => !v)}
+                    aria-expanded={showAllKeywords}
+                  >
+                    {showAllKeywords
+                      ? "Voir moins"
+                      : `Voir plus (${result.keywords.length - 10})`}
+                  </button>
+                )}
               </div>
 
               {result.pageSamples.length > 0 && (
