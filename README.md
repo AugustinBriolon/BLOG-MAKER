@@ -28,7 +28,10 @@ URL
  → sitemap (ou fallback liens homepage)
  → sélection priorisée des pages (plafond 12)
  → fetch poli (gap ~200 ms) + extraction texte (cheerio)
- → tokens / bigrammes (stopwords FR+EN)
+ → tokens / bigrammes pondérés :
+      title · meta · OG · H1 ≫ corps ;
+      homepage / locale home ≫ pages profondes ;
+      démotion auteurs + chrome UI (hero, section…)
  → domain guess
  → [optionnel] topics IA
  → [optionnel] draft IA
@@ -37,6 +40,10 @@ URL
 ### Ciblage des pages
 
 À partir de l’URL de départ (locale `/fr/` ou host `.fr`), le crawler **préfère** landing / produit / blog / solutions / tarifs, et **rétrograde** légal, privacy, login, auteurs, carrières, cookies, etc. Les plafonds `MAX_PAGES` / `MAX_SITEMAP_URLS` et le délai entre requêtes restent inchangés.
+
+### Pondération des mots-clés
+
+Le ranking reste **scoré** (bigrammes, accents, bruit) ; les compteurs UI reflètent une masse pondérée arrondie (pas le raw body-only). La homepage (ou l’URL seed / `/fr`) pèse nettement plus que les articles de blog profonds, afin d’ancrer le domain guess sur le positionnement marque plutôt que sur un guide « hero section » ou un nom d’auteur.
 
 ### IA
 

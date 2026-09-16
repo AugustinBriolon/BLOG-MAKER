@@ -1,6 +1,8 @@
 /**
  * Tokenisation FR et scoring unigrammes/bigrammes pour les mots-clés SEO.
  * Infère aussi une description courte du domaine à partir des termes.
+ *
+ * Pondération : title / meta / OG / H1 > corps ; homepage ≫ pages profondes.
  */
 import { STOPWORDS } from "./stopwords";
 
@@ -8,6 +10,13 @@ export type KeywordHit = {
   term: string;
   count: number;
   kind: "unigram" | "bigram";
+};
+
+/** Segment de corpus avec poids (page × champ). */
+export type WeightedSegment = {
+  text: string;
+  /** Multiplicateur (ex. home×title = 4×4). */
+  weight: number;
 };
 
 /** Tokens / bigrammes trop génériques pour le domain guess et le ranking. */
@@ -57,13 +66,43 @@ const NOISE_TOKENS = new Set(
     "await",
     "domain",
     "example",
+    // UI chrome / design-system noise
+    "hero",
+    "section",
+    "sections",
+    "button",
+    "buttons",
+    "overlay",
+    "slider",
+    "carousel",
+    "viewport",
+    "container",
+    "wrapper",
+    "layout",
+    "grid",
+    "flex",
+    "parallax",
+    "scroll",
+    "sticky",
+    "modal",
+    "popup",
+    "tooltip",
+    "sidebar",
+    "navbar",
+    "breadcrumb",
+    "placeholder",
+    "lorem",
+    "ipsum",
+    "bento",
+    "gsap",
+    "lenis",
   ].map((t) => t.toLowerCase()),
 );
 
 const HOST_FRAGMENTS = new Set(["com", "www", "org", "net", "io", "github"]);
 
 const NOISE_PHRASE_RE =
-  /\b(user account|user accounts|service agreement|privacy policy|cookie policy|month included|github com|com ovh|example domain|await sandbox|tan stack|hit css|becomes first|firefox support|general use|personal data|project vercel|copy link|link heading|holiday pay)\b/i;
+  /\b(user account|user accounts|service agreement|privacy policy|cookie policy|month included|github com|com ovh|example domain|await sandbox|tan stack|hit css|becomes first|firefox support|general use|personal data|project vercel|copy link|link heading|holiday pay|hero section|bento grid|design to code|next sanity|paris next|concoit experiences|experiences premium|sur-mesure travaillons|easy-using|premium paris|sanity direction|studio concoit|travaillons ensemble)\b/i;
 
 /** Fold for stopword matching only — display tokens keep accents (NFC). */
 function fold(value: string): string {
@@ -145,12 +184,55 @@ export function tokenize(text: string): string[] {
   return out;
 }
 
-function countMap(tokens: string[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const token of tokens) {
-    map.set(token, (map.get(token) ?? 0) + 1);
+/** Construit un set de termes à démoter à partir de noms d'auteurs. */
+export function authorDemoteTerms(authors: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const author of authors) {
+    const tokens = tokenize(author);
+    for (const t of tokens) {
+      if (t.length >= 3) out.add(fold(t));
+    }
+    if (tokens.length >= 2) {
+      out.add(fold(tokens.join(" ")));
+      // First + last only (ignore middle particles)
+      out.add(fold(`${tokens[0]} ${tokens[tokens.length - 1]}`));
+    }
   }
-  return map;
+  return out;
+}
+
+/**
+ * Heuristique prénom+nom : uniquement sur bylines explicites
+ * (« Par Alan Chevereau », « By Jane Doe »), pas sur les titres métier.
+ */
+export function guessPersonNameDemotes(texts: string[]): Set<string> {
+  const out = new Set<string>();
+  const bylineRe =
+    /\b(?:Par|By|Auteur|Author)\s+([A-ZÀ-ÖØÝ][a-zà-öø-ÿœæ]{1,20}(?:\s+[A-ZÀ-ÖØÝ][a-zà-öø-ÿœæ]{1,20}){1,2})\b/g;
+  for (const text of texts) {
+    if (!text) continue;
+    const prepared = prepareText(text);
+    let m: RegExpExecArray | null;
+    while ((m = bylineRe.exec(prepared)) !== null) {
+      const name = m[1];
+      const tokens = tokenize(name);
+      for (const t of tokens) {
+        if (t.length >= 3) out.add(fold(t));
+      }
+      if (tokens.length >= 2) {
+        out.add(fold(tokens.join(" ")));
+      }
+    }
+  }
+  return out;
+}
+
+function addWeighted(
+  map: Map<string, number>,
+  key: string,
+  weight: number,
+) {
+  map.set(key, (map.get(key) ?? 0) + weight);
 }
 
 function scoreHit(
@@ -164,17 +246,37 @@ function scoreHit(
   if (/[àâäéèêëïîôùûüçœæ]/i.test(term)) score *= 1.12;
   if (term.includes("-") || /'/.test(term)) score *= 1.06;
   if (kind === "unigram" && term.length <= 3) score *= 0.35;
-  if (demote?.has(fold(term))) score *= 0.25;
-  // Demote brand unigram if it appears inside a demoted brand stem
+  // Demote brand stems only on unigrams / exact phrase — not every bigram part,
+  // sinon « facturation électronique » est tué si « electronique » a été mal
+  // classé comme nom propre.
+  if (demote?.has(fold(term))) score *= 0.08;
   if (kind === "unigram" && demote) {
     for (const d of demote) {
-      if (d.length >= 4 && fold(term).includes(d)) {
+      if (d.length >= 4 && !d.includes(" ") && fold(term) === d) {
+        score *= 0.2;
+        break;
+      }
+      if (d.length >= 4 && !d.includes(" ") && fold(term).includes(d)) {
         score *= 0.35;
         break;
       }
     }
   }
-  if (isNoiseTerm(term)) score *= 0.18;
+  // Person full-name bigram demotion
+  if (kind === "bigram" && demote?.has(fold(term))) {
+    score *= 0.08;
+  } else if (kind === "bigram" && demote) {
+    const parts = fold(term).split(/\s+/);
+    // Only demote if ALL parts are person-name tokens (full name), not métier words
+    if (parts.length >= 2 && parts.every((p) => demote.has(p))) {
+      score *= 0.08;
+    }
+  }
+  if (isNoiseTerm(term)) score *= 0.12;
+  // CTA / chrome FR bigrams
+  if (/\b(j'utilise|utilisez|découvrir|en savoir|sur-mesure travaillons)\b/i.test(term)) {
+    score *= 0.15;
+  }
   return score;
 }
 
@@ -186,18 +288,24 @@ function isNoiseTerm(term: string): boolean {
   if (parts.every((p) => NOISE_TOKENS.has(p))) return true;
   // TLD / host fragment bigrams: "com ovh", "github com"
   if (parts.some((p) => HOST_FRAGMENTS.has(p))) return true;
+  // Any part is hard UI chrome
+  if (parts.some((p) => ["hero", "section", "bento", "gsap"].includes(p))) {
+    return true;
+  }
   return false;
 }
 
 /** Keep terms that can describe a métier (for domain guess). */
-function isDomainSeedCandidate(hit: KeywordHit): boolean {
+function isDomainSeedCandidate(hit: KeywordHit, demote?: Set<string>): boolean {
   if (isNoiseTerm(hit.term)) return false;
+  if (demote?.has(fold(hit.term))) return false;
   const parts = fold(hit.term).split(/\s+/);
   if (parts.some((p) => NOISE_TOKENS.has(p))) return false;
+  if (parts.some((p) => demote?.has(p))) return false;
   // Prefer multi-word métier phrases; allow strong unigrams
   if (hit.kind === "unigram") {
     if (hit.term.length < 5) return false;
-    if (hit.count < 8) return false;
+    if (hit.count < 6) return false;
   }
   return true;
 }
@@ -210,7 +318,11 @@ function toRankedHits(
 ): KeywordHit[] {
   return [...map.entries()]
     .filter(([, count]) => count >= minCount)
-    .map(([term, count]) => ({ term, count, kind }))
+    .map(([term, count]) => ({
+      term,
+      count: Math.round(count * 10) / 10,
+      kind,
+    }))
     .sort(
       (a, b) =>
         scoreHit(b.term, b.count, b.kind, demote) -
@@ -241,29 +353,64 @@ function brandDemoteTerms(host?: string): Set<string> {
   return new Set(parts.map(fold));
 }
 
+function accumulateSegments(
+  segments: WeightedSegment[],
+): {
+  unigrams: Map<string, number>;
+  bigrams: Map<string, number>;
+  totalSignificantTokens: number;
+} {
+  const unigrams = new Map<string, number>();
+  const bigrams = new Map<string, number>();
+  let totalSignificantTokens = 0;
+
+  for (const segment of segments) {
+    if (!segment.text?.trim() || segment.weight <= 0) continue;
+    const tokens = tokenize(segment.text);
+    totalSignificantTokens += tokens.length;
+    const w = segment.weight;
+    for (const token of tokens) {
+      addWeighted(unigrams, token, w);
+    }
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const a = tokens[i];
+      const b = tokens[i + 1];
+      if (a === b) continue;
+      addWeighted(bigrams, `${a} ${b}`, w);
+    }
+  }
+
+  return { unigrams, bigrams, totalSignificantTokens };
+}
+
 export function analyzeKeywords(
-  corpus: string,
-  options?: { topN?: number; siteHost?: string },
+  corpus: string | WeightedSegment[],
+  options?: {
+    topN?: number;
+    siteHost?: string;
+    /** Termes supplémentaires à démoter (auteurs, etc.). */
+    extraDemote?: Set<string>;
+  },
 ): {
   keywords: KeywordHit[];
   totalSignificantTokens: number;
 } {
   const topN = options?.topN ?? 40;
   const demote = brandDemoteTerms(options?.siteHost);
-  const tokens = tokenize(corpus);
-  const unigrams = countMap(tokens);
-
-  const bigramMap = new Map<string, number>();
-  for (let i = 0; i < tokens.length - 1; i++) {
-    const a = tokens[i];
-    const b = tokens[i + 1];
-    if (a === b) continue;
-    const key = `${a} ${b}`;
-    bigramMap.set(key, (bigramMap.get(key) ?? 0) + 1);
+  if (options?.extraDemote) {
+    for (const t of options.extraDemote) demote.add(t);
   }
 
+  const segments: WeightedSegment[] = Array.isArray(corpus)
+    ? corpus
+    : [{ text: corpus, weight: 1 }];
+
+  const { unigrams, bigrams, totalSignificantTokens } =
+    accumulateSegments(segments);
+
+  // minCount: weighted — homepage meta alone can clear 2
   const uniHits = toRankedHits(unigrams, "unigram", 2, demote);
-  const biHits = toRankedHits(bigramMap, "bigram", 2, demote);
+  const biHits = toRankedHits(bigrams, "bigram", 2, demote);
 
   const merged: KeywordHit[] = [];
   const seen = new Set<string>();
@@ -288,6 +435,11 @@ export function analyzeKeywords(
     seen.add(hit.term);
   }
 
+  // Display count as integer (weighted mass rounded)
+  for (const hit of merged) {
+    hit.count = Math.max(1, Math.round(hit.count));
+  }
+
   merged.sort(
     (a, b) =>
       scoreHit(b.term, b.count, b.kind, demote) -
@@ -298,25 +450,32 @@ export function analyzeKeywords(
 
   return {
     keywords: merged.slice(0, topN),
-    totalSignificantTokens: tokens.length,
+    totalSignificantTokens,
   };
 }
 
 export function inferDomain(
   keywords: KeywordHit[],
   siteHost: string,
+  extraDemote?: Set<string>,
 ): string {
   const brandish = siteHost
     .replace(/^www\./, "")
     .split(".")[0]
     ?.replace(/[-_]/g, " ");
 
+  const demote = brandDemoteTerms(siteHost);
+  if (extraDemote) {
+    for (const t of extraDemote) demote.add(t);
+  }
+
   const seeds = keywords
-    .filter(isDomainSeedCandidate)
+    .filter((k) => isDomainSeedCandidate(k, demote))
     .slice(0, 16)
     .sort(
       (a, b) =>
-        scoreHit(b.term, b.count, b.kind) - scoreHit(a.term, a.count, a.kind) ||
+        scoreHit(b.term, b.count, b.kind, demote) -
+          scoreHit(a.term, a.count, a.kind, demote) ||
         b.count - a.count,
     );
 
@@ -364,3 +523,40 @@ export function inferDomain(
 
   return "Domaine difficile à inférer avec le corpus actuel";
 }
+
+/** Poids page : homepage / locale home / URL seed ≫ pages profondes.
+ *  Le boost fort s'applique surtout aux champs SEO ; le body reste modéré
+ *  pour ne pas noyer les bigrammes métier des pages produit. */
+export function pageWeightForUrl(
+  pageUrl: string,
+  startUrl: URL,
+): { seo: number; body: number } {
+  let path: string;
+  try {
+    path = new URL(pageUrl).pathname || "/";
+  } catch {
+    return { seo: 1, body: 1 };
+  }
+  const normalized = path.replace(/\/+$/, "") || "/";
+  const startPath = (startUrl.pathname || "/").replace(/\/+$/, "") || "/";
+
+  const isHome =
+    normalized === "/" ||
+    normalized === "" ||
+    normalized === startPath ||
+    /^\/(fr|en|fr-fr|en-us|en-gb)$/i.test(normalized);
+
+  if (isHome) return { seo: 5, body: 1.35 };
+  if (/^\/(fr|en)\/[^/]+$/i.test(normalized)) return { seo: 1.4, body: 1.1 };
+  return { seo: 1, body: 1 };
+}
+
+/** Poids des champs SEO vs corps. */
+export const FIELD_WEIGHTS = {
+  title: 4,
+  ogTitle: 3.5,
+  h1: 3.5,
+  description: 3,
+  ogDescription: 3,
+  body: 1,
+} as const;

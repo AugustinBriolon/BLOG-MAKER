@@ -13,7 +13,16 @@ import {
   originFromUrl,
   sleep,
 } from "./http";
-import { analyzeKeywords, inferDomain, type KeywordHit } from "./keywords";
+import {
+  analyzeKeywords,
+  authorDemoteTerms,
+  FIELD_WEIGHTS,
+  guessPersonNameDemotes,
+  inferDomain,
+  pageWeightForUrl,
+  type KeywordHit,
+  type WeightedSegment,
+} from "./keywords";
 import { prioritizePages } from "./page-priority";
 import { loadRobotsPolicy } from "./robots";
 import { discoverPages } from "./sitemap";
@@ -210,13 +219,46 @@ export async function analyzeSite(
     label: "Extraction des mots-clés…",
   });
 
-  const corpus = pages
-    .map((p) => [p.title, p.description, p.text].filter(Boolean).join("\n"))
-    .join("\n\n");
+  const segments: WeightedSegment[] = [];
+  const authorNames: string[] = [];
+  const nameHintTexts: string[] = [];
 
-  const { keywords, totalSignificantTokens } = analyzeKeywords(corpus, {
+  for (const page of pages) {
+    const pageW = pageWeightForUrl(page.url, siteUrl);
+    const push = (text: string, fieldW: number, kind: "seo" | "body") => {
+      if (!text?.trim()) return;
+      const pageMul = kind === "seo" ? pageW.seo : pageW.body;
+      segments.push({ text, weight: pageMul * fieldW });
+    };
+    push(page.title, FIELD_WEIGHTS.title, "seo");
+    push(page.ogTitle, FIELD_WEIGHTS.ogTitle, "seo");
+    push(page.h1, FIELD_WEIGHTS.h1, "seo");
+    push(page.description, FIELD_WEIGHTS.description, "seo");
+    push(page.ogDescription, FIELD_WEIGHTS.ogDescription, "seo");
+    push(page.text, FIELD_WEIGHTS.body, "body");
+
+    authorNames.push(...page.authors);
+    nameHintTexts.push(page.title, page.h1, page.ogTitle);
+  }
+
+  const extraDemote = new Set<string>([
+    ...authorDemoteTerms(authorNames),
+    ...guessPersonNameDemotes(nameHintTexts),
+  ]);
+
+  // Filtrer les faux positifs Title Case métier déjà exclus côté extract
+  for (const bad of [
+    "information technology",
+    "information",
+    "technology",
+  ]) {
+    extraDemote.delete(bad);
+  }
+
+  const { keywords, totalSignificantTokens } = analyzeKeywords(segments, {
     topN: 40,
     siteHost: siteUrl.hostname,
+    extraDemote,
   });
 
   if (keywords.length === 0) {
@@ -230,7 +272,7 @@ export async function analyzeSite(
     title: p.title || "(sans titre)",
   }));
   const blogPosts = detectBlogPosts(pageRefs);
-  const domainGuess = inferDomain(keywords, siteUrl.hostname);
+  const domainGuess = inferDomain(keywords, siteUrl.hostname, extraDemote);
 
   const result: AnalyzeResult = {
     siteUrl: origin,
