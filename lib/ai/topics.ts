@@ -1,12 +1,16 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import type { BlogPostRef } from "@/lib/analyze";
-import type { KeywordHit } from "@/lib/analyze";
+import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
 
 export const MAX_AI_TOPICS = 3;
 
 /** Cheapest capable default via AI Gateway — override with AI_TOPICS_MODEL. */
 export const DEFAULT_TOPICS_MODEL = "openai/gpt-4.1-nano";
+
+export type TopicSuggestion = {
+  title: string;
+  reason: string;
+};
 
 export type TopicsRequest = {
   host: string;
@@ -16,18 +20,35 @@ export type TopicsRequest = {
 };
 
 export type TopicsResult = {
+  topics: TopicSuggestion[];
+  /** @deprecated use topics[].title */
   titles: string[];
   model: string;
   unavailable?: boolean;
   error?: string;
+  action?: string;
 };
 
 const topicsSchema = z.object({
-  titles: z
-    .array(z.string().min(8).max(120))
+  topics: z
+    .array(
+      z.object({
+        title: z
+          .string()
+          .min(8)
+          .max(120)
+          .describe("Titre d'article de blog SEO, en français"),
+        reason: z
+          .string()
+          .min(12)
+          .max(140)
+          .describe(
+            "Demi-phrase : pourquoi ce sujet (opportunité SEO / écart vs contenus existants)",
+          ),
+      }),
+    )
     .min(1)
-    .max(MAX_AI_TOPICS)
-    .describe("1 à 3 titres d'articles de blog SEO, en français"),
+    .max(MAX_AI_TOPICS),
 });
 
 export function hasAiCredentials(): boolean {
@@ -38,6 +59,14 @@ export function hasAiCredentials(): boolean {
   );
 }
 
+export function missingAiKeyMessage(): { error: string; action: string } {
+  return {
+    error: "Clé IA absente — sujets non générés.",
+    action:
+      "Ajoutez AI_GATEWAY_API_KEY dans .env.local (ou déployez sur Vercel avec OIDC).",
+  };
+}
+
 export async function generateTopicTitles(
   input: TopicsRequest,
 ): Promise<TopicsResult> {
@@ -45,12 +74,14 @@ export async function generateTopicTitles(
     process.env.AI_TOPICS_MODEL?.trim() || DEFAULT_TOPICS_MODEL;
 
   if (!hasAiCredentials()) {
+    const missing = missingAiKeyMessage();
     return {
+      topics: [],
       titles: [],
       model,
       unavailable: true,
-      error:
-        "Clé IA absente — définissez AI_GATEWAY_API_KEY (ou déployez sur Vercel avec OIDC).",
+      error: missing.error,
+      action: missing.action,
     };
   }
 
@@ -61,14 +92,17 @@ export async function generateTopicTitles(
     .join("\n");
 
   const prompt = `Tu es un stratège SEO francophone pour Blog Maker.
-Propose exactement entre 1 et 3 titres d'articles de blog (titres seuls, pas de corps).
+Propose entre 1 et ${MAX_AI_TOPICS} sujets de blog.
+
+Pour chaque sujet, fournis :
+- title : titre d'article concret
+- reason : une demi-phrase (max ~20 mots) expliquant l'opportunité SEO ou l'écart vs le blog existant
 
 Contraintes :
-- Maximum ${MAX_AI_TOPICS} titres
-- Français, concrets, orientés opportunité SEO
-- Alignés avec le domaine métier et les mots-clés
-- Ne duplique PAS les contenus déjà détectés (titres/URLs fournis)
-- Pas de numérotation, pas de guillemets superflus, pas d'emoji
+- Français, orientés SEO
+- Alignés domaine + mots-clés
+- Ne duplique PAS les contenus déjà détectés
+- Pas d'emoji, pas de numérotation
 
 Site : ${input.host}
 Domaine inféré : ${input.domainGuess}
@@ -81,27 +115,36 @@ ${existing || "(aucun article blog détecté)"}`;
       model,
       output: Output.object({
         name: "BlogTopics",
-        description: "Titres de sujets de blog SEO (1 à 3)",
+        description: "Sujets de blog SEO avec raison courte (1 à 3)",
         schema: topicsSchema,
       }),
       prompt,
       temperature: 0.6,
     });
 
-    const titles = (output?.titles ?? [])
-      .map((t) => t.trim().replace(/^["«]|["»]$/g, ""))
-      .filter(Boolean)
+    const topics = (output?.topics ?? [])
+      .map((t) => ({
+        title: t.title.trim().replace(/^["«]|["»]$/g, ""),
+        reason: t.reason.trim().replace(/^["«]|["»]$/g, ""),
+      }))
+      .filter((t) => t.title.length >= 8)
       .slice(0, MAX_AI_TOPICS);
 
-    return { titles, model };
+    return {
+      topics,
+      titles: topics.map((t) => t.title),
+      model,
+    };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Génération IA impossible";
     console.error("[topics]", message);
     return {
+      topics: [],
       titles: [],
       model,
       error: "Impossible de générer les sujets pour le moment.",
+      action: "Réessayez, ou vérifiez votre clé AI Gateway.",
     };
   }
 }

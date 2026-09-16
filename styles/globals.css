@@ -170,6 +170,20 @@
   animation: rise-in 0.7s var(--ease-out-quart) 0.1s both;
 }
 
+/* Sticky analyze form on mobile (form stays reachable while scrolling results) */
+@media (max-width: 639px) {
+  .analyze-form {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin-inline: -1.25rem;
+    padding: 0.75rem 1.25rem;
+    background: color-mix(in oklch, var(--background) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  }
+}
+
 /* ——— button-02: required hover-reveal (keep exact behavior) ——— */
 .button-02 {
   color: var(--btn-label);
@@ -187,6 +201,11 @@
   font-weight: 600;
   outline: none;
   -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s var(--ease-out-quart);
+}
+
+.button-02--compact {
+  width: 180px;
 }
 
 @media (max-width: 639px) {
@@ -246,9 +265,37 @@
   transform: translateX(0);
 }
 
+/* Touch / pressed: hover-reveal does not work on touch — give clear feedback */
+.button-02:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.button-02:active:not(:disabled) .inner,
+.button-02:active:not(:disabled) .circle {
+  filter: brightness(0.88);
+}
+
+@media (hover: none) {
+  .button-02:active:not(:disabled) .inner {
+    width: calc(100% - 52px);
+  }
+
+  .button-02:active:not(:disabled) .circle {
+    scale: 1;
+  }
+
+  .button-02:active:not(:disabled) .circle span {
+    transform: translateX(0);
+  }
+}
+
 .button-02:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.draft-markdown {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .keyword-row {

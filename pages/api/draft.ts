@@ -1,25 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import {
-  generateTopicTitles,
-  MAX_AI_TOPICS,
-  type TopicsResult,
-} from "@/lib/ai/topics";
+import { generateArticleDraft, type DraftResult } from "@/lib/ai/draft";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "64kb",
+      sizeLimit: "96kb",
     },
   },
-  maxDuration: 30,
+  maxDuration: 60,
 };
 
 type ErrorBody = { error: string; code?: string; action?: string };
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<TopicsResult | ErrorBody>,
+  res: NextApiResponse<DraftResult | ErrorBody>,
 ) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -29,34 +25,32 @@ export default async function handler(
   }
 
   const body = req.body ?? {};
+  const title = typeof body.title === "string" ? body.title.trim() : "";
   const host = typeof body.host === "string" ? body.host.trim() : "";
   const domainGuess =
     typeof body.domainGuess === "string" ? body.domainGuess.trim() : "";
   const keywords = Array.isArray(body.keywords)
-    ? (body.keywords as KeywordHit[]).slice(0, 40)
+    ? (body.keywords as KeywordHit[]).slice(0, 20)
     : [];
   const blogPosts = Array.isArray(body.blogPosts)
-    ? (body.blogPosts as BlogPostRef[]).slice(0, 20)
+    ? (body.blogPosts as BlogPostRef[]).slice(0, 12)
     : [];
 
-  if (!host && !domainGuess && keywords.length === 0) {
+  if (!title) {
     return res.status(400).json({
-      error: "Contexte d'analyse manquant pour les sujets IA.",
-      code: "MISSING_CONTEXT",
-      action: "Relancez d’abord l’analyse d’URL.",
+      error: "Sujet manquant.",
+      code: "MISSING_TITLE",
+      action: "Sélectionnez un sujet proposé, puis cliquez sur Générer.",
     });
   }
 
-  const result = await generateTopicTitles({
+  const result = await generateArticleDraft({
+    title,
     host,
     domainGuess,
     keywords,
     blogPosts,
   });
 
-  return res.status(200).json({
-    ...result,
-    topics: result.topics.slice(0, MAX_AI_TOPICS),
-    titles: result.topics.map((t) => t.title).slice(0, MAX_AI_TOPICS),
-  });
+  return res.status(200).json(result);
 }

@@ -13,6 +13,13 @@ import { analyzeKeywords, inferDomain, type KeywordHit } from "./keywords";
 import { loadRobotsPolicy } from "./robots";
 import { discoverPages } from "./sitemap";
 
+export type AnalyzeProgress = {
+  phase: "robots" | "sitemap" | "crawl" | "keywords" | "done";
+  done: number;
+  total: number;
+  label: string;
+};
+
 export type AnalyzeResult = {
   siteUrl: string;
   host: string;
@@ -31,12 +38,81 @@ export type AnalyzeResult = {
   warnings: string[];
 };
 
-export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
+export type AnalyzeOptions = {
+  onProgress?: (progress: AnalyzeProgress) => void;
+};
+
+function report(
+  onProgress: AnalyzeOptions["onProgress"],
+  progress: AnalyzeProgress,
+) {
+  onProgress?.(progress);
+}
+
+/** Map error codes to a clear line + next action for the UI. */
+export function explainAnalyzeError(error: AnalyzeError): {
+  message: string;
+  action: string;
+} {
+  switch (error.code) {
+    case "EMPTY_URL":
+    case "INVALID_URL":
+    case "INVALID_PROTOCOL":
+    case "INVALID_HOST":
+      return {
+        message: error.message,
+        action: "Corrigez l’URL (ex. https://exemple.com) puis réessayez.",
+      };
+    case "NO_PAGES":
+    case "ROBOTS_DISALLOW":
+      return {
+        message: "Site bloqué ou aucune page autorisée (robots.txt).",
+        action:
+          "Essayez la page d’accueil publique, ou un autre domaine accessible.",
+      };
+    case "NO_CONTENT":
+      return {
+        message: "Impossible d’extraire du texte utile sur ce site.",
+        action:
+          "Vérifiez que le site répond en HTML public (pas de login / mur).",
+      };
+    case "FETCH_TIMEOUT":
+    case "FETCH_FAILED":
+      return {
+        message: "Échec de récupération des pages (réseau ou timeout).",
+        action: "Réessayez dans un instant, ou testez une autre URL.",
+      };
+    default:
+      return {
+        message: error.message || "L’analyse a échoué.",
+        action: "Réessayez, ou changez d’URL.",
+      };
+  }
+}
+
+export async function analyzeSite(
+  rawUrl: string,
+  options: AnalyzeOptions = {},
+): Promise<AnalyzeResult> {
+  const { onProgress } = options;
   const siteUrl = normalizeSiteUrl(rawUrl);
   const origin = originFromUrl(siteUrl);
   const warnings: string[] = [];
 
+  report(onProgress, {
+    phase: "robots",
+    done: 0,
+    total: MAX_PAGES,
+    label: "Lecture de robots.txt…",
+  });
   const robots = await loadRobotsPolicy(origin);
+
+  report(onProgress, {
+    phase: "sitemap",
+    done: 0,
+    total: MAX_PAGES,
+    label: "Recherche du sitemap…",
+  });
   const discovery = await discoverPages(siteUrl, robots);
   warnings.push(...discovery.warnings);
 
@@ -67,10 +143,19 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
   });
 
   const targets = sorted.slice(0, MAX_PAGES);
+  const total = targets.length;
   const pages: ExtractedPage[] = [];
   let pagesFailed = 0;
 
-  for (const target of targets) {
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i];
+    report(onProgress, {
+      phase: "crawl",
+      done: i,
+      total,
+      label: `Crawl ${i}/${total} pages…`,
+    });
+
     try {
       const { status, text, contentType, url } = await fetchText(
         target.toString(),
@@ -94,6 +179,13 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
     } catch {
       pagesFailed += 1;
     }
+
+    report(onProgress, {
+      phase: "crawl",
+      done: i + 1,
+      total,
+      label: `Crawl ${i + 1}/${total} pages…`,
+    });
   }
 
   if (pages.length === 0) {
@@ -103,6 +195,13 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
       "NO_CONTENT",
     );
   }
+
+  report(onProgress, {
+    phase: "keywords",
+    done: total,
+    total,
+    label: "Extraction des mots-clés…",
+  });
 
   const corpus = pages
     .map((p) => [p.title, p.description, p.text].filter(Boolean).join("\n"))
@@ -126,7 +225,7 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
   const blogPosts = detectBlogPosts(pageRefs);
   const domainGuess = inferDomain(keywords, siteUrl.hostname);
 
-  return {
+  const result: AnalyzeResult = {
     siteUrl: origin,
     host: siteUrl.hostname.replace(/^www\./, ""),
     discoverySource: discovery.source,
@@ -143,8 +242,17 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
     domainGuess,
     warnings: [...new Set(warnings)].slice(0, 12),
   };
+
+  report(onProgress, {
+    phase: "done",
+    done: total,
+    total,
+    label: "Analyse terminée",
+  });
+
+  return result;
 }
 
-export { AnalyzeError, normalizeSiteUrl };
+export { AnalyzeError, normalizeSiteUrl, MAX_PAGES };
 export type { KeywordHit } from "./keywords";
 export type { BlogPostRef } from "./blog-posts";
