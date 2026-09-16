@@ -135,7 +135,7 @@ function decodeBasicEntities(text: string): string {
  * - remove soft hyphens (join syllables, do NOT replace with space)
  * - normalize apostrophes / dashes
  */
-export function prepareText(raw: string): string {
+function prepareText(raw: string): string {
   return decodeBasicEntities(raw)
     .normalize("NFC")
     .replace(/\u00AD/g, "") // soft hyphen
@@ -170,7 +170,7 @@ function isKeepableToken(raw: string): boolean {
   return true;
 }
 
-export function tokenize(text: string): string[] {
+function tokenize(text: string): string[] {
   const prepared = prepareText(text).toLowerCase();
   const matches = prepared.match(TOKEN_RE) ?? [];
   const out: string[] = [];
@@ -201,32 +201,6 @@ export function authorDemoteTerms(authors: string[]): Set<string> {
   return out;
 }
 
-/**
- * Heuristique prénom+nom : uniquement sur bylines explicites
- * (« Par Alan Chevereau », « By Jane Doe »), pas sur les titres métier.
- */
-export function guessPersonNameDemotes(texts: string[]): Set<string> {
-  const out = new Set<string>();
-  const bylineRe =
-    /\b(?:Par|By|Auteur|Author)\s+([A-ZÀ-ÖØÝ][a-zà-öø-ÿœæ]{1,20}(?:\s+[A-ZÀ-ÖØÝ][a-zà-öø-ÿœæ]{1,20}){1,2})\b/g;
-  for (const text of texts) {
-    if (!text) continue;
-    const prepared = prepareText(text);
-    let m: RegExpExecArray | null;
-    while ((m = bylineRe.exec(prepared)) !== null) {
-      const name = m[1];
-      const tokens = tokenize(name);
-      for (const t of tokens) {
-        if (t.length >= 3) out.add(fold(t));
-      }
-      if (tokens.length >= 2) {
-        out.add(fold(tokens.join(" ")));
-      }
-    }
-  }
-  return out;
-}
-
 function addWeighted(
   map: Map<string, number>,
   key: string,
@@ -250,7 +224,7 @@ function scoreHit(
   // sinon « facturation électronique » est tué si « electronique » a été mal
   // classé comme nom propre.
   if (demote?.has(fold(term))) score *= 0.08;
-  if (kind === "unigram" && demote) {
+  else if (kind === "unigram" && demote) {
     for (const d of demote) {
       if (d.length >= 4 && !d.includes(" ") && fold(term) === d) {
         score *= 0.2;
@@ -261,10 +235,6 @@ function scoreHit(
         break;
       }
     }
-  }
-  // Person full-name bigram demotion
-  if (kind === "bigram" && demote?.has(fold(term))) {
-    score *= 0.08;
   } else if (kind === "bigram" && demote) {
     const parts = fold(term).split(/\s+/);
     // Only demote if ALL parts are person-name tokens (full name), not métier words
@@ -316,20 +286,26 @@ function toRankedHits(
   minCount: number,
   demote?: Set<string>,
 ): KeywordHit[] {
-  return [...map.entries()]
+  const rows = [...map.entries()]
     .filter(([, count]) => count >= minCount)
-    .map(([term, count]) => ({
-      term,
-      count: Math.round(count * 10) / 10,
-      kind,
-    }))
-    .sort(
-      (a, b) =>
-        scoreHit(b.term, b.count, b.kind, demote) -
-          scoreHit(a.term, a.count, a.kind, demote) ||
-        b.count - a.count ||
-        a.term.localeCompare(b.term, "fr"),
-    );
+    .map(([term, count]) => {
+      const rounded = Math.round(count * 10) / 10;
+      return {
+        term,
+        count: rounded,
+        kind,
+        score: scoreHit(term, rounded, kind, demote),
+      };
+    });
+
+  rows.sort(
+    (a, b) =>
+      b.score - a.score ||
+      b.count - a.count ||
+      a.term.localeCompare(b.term, "fr"),
+  );
+
+  return rows.map(({ term, count, kind: k }) => ({ term, count, kind: k }));
 }
 
 function coversUnigram(phrase: string, uni: string): boolean {
@@ -440,16 +416,19 @@ export function analyzeKeywords(
     hit.count = Math.max(1, Math.round(hit.count));
   }
 
-  merged.sort(
+  const scored = merged.map((hit) => ({
+    hit,
+    score: scoreHit(hit.term, hit.count, hit.kind, demote),
+  }));
+  scored.sort(
     (a, b) =>
-      scoreHit(b.term, b.count, b.kind, demote) -
-        scoreHit(a.term, a.count, a.kind, demote) ||
-      b.count - a.count ||
-      a.term.localeCompare(b.term, "fr"),
+      b.score - a.score ||
+      b.hit.count - a.hit.count ||
+      a.hit.term.localeCompare(b.hit.term, "fr"),
   );
 
   return {
-    keywords: merged.slice(0, topN),
+    keywords: scored.slice(0, topN).map((s) => s.hit),
     totalSignificantTokens,
   };
 }
@@ -471,15 +450,9 @@ export function inferDomain(
 
   const seeds = keywords
     .filter((k) => isDomainSeedCandidate(k, demote))
-    .slice(0, 16)
-    .sort(
-      (a, b) =>
-        scoreHit(b.term, b.count, b.kind, demote) -
-          scoreHit(a.term, a.count, a.kind, demote) ||
-        b.count - a.count,
-    );
+    .slice(0, 16);
 
-  // Prefer bigrams, then fill with unigrams
+  // Prefer bigrams, then fill with unigrams (keywords already ranked by score)
   const picked: string[] = [];
   const seen = new Set<string>();
   for (const hit of seeds.filter((k) => k.kind === "bigram")) {

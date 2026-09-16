@@ -11,13 +11,14 @@ import {
   fetchText,
   normalizeSiteUrl,
   originFromUrl,
+  pageCacheKey,
   sleep,
+  type FetchCache,
 } from "./http";
 import {
   analyzeKeywords,
   authorDemoteTerms,
   FIELD_WEIGHTS,
-  guessPersonNameDemotes,
   inferDomain,
   pageWeightForUrl,
   type KeywordHit,
@@ -112,6 +113,8 @@ export async function analyzeSite(
   const siteUrl = normalizeSiteUrl(rawUrl);
   const origin = originFromUrl(siteUrl);
   const warnings: string[] = [];
+  /** Mémoire fetch d'une seule analyse (discovery ↔ crawl). */
+  const fetchCache: FetchCache = new Map();
 
   report(onProgress, {
     phase: "robots",
@@ -119,7 +122,7 @@ export async function analyzeSite(
     total: MAX_PAGES,
     label: "Lecture de robots.txt…",
   });
-  const robots = await loadRobotsPolicy(origin);
+  const robots = await loadRobotsPolicy(origin, fetchCache);
 
   report(onProgress, {
     phase: "sitemap",
@@ -127,24 +130,30 @@ export async function analyzeSite(
     total: MAX_PAGES,
     label: "Recherche du sitemap…",
   });
-  const discovery = await discoverPages(siteUrl, robots);
+  const discovery = await discoverPages(siteUrl, robots, fetchCache);
   warnings.push(...discovery.warnings);
 
-  const eligible = discovery.urls
-    .map((u) => {
-      try {
-        return new URL(u);
-      } catch {
-        return null;
-      }
-    })
-    .filter((u): u is URL => Boolean(u))
-    .filter((u) => robots.allowsPath(u.pathname));
+  const seenEligible = new Set<string>();
+  const eligible: URL[] = [];
+  for (const raw of discovery.urls) {
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      continue;
+    }
+    if (!robots.allowsPath(u.pathname)) continue;
+    const key = pageCacheKey(u.toString());
+    if (seenEligible.has(key)) continue;
+    seenEligible.add(key);
+    eligible.push(u);
+  }
 
   // Always consider the URL saisie (landing / locale) si robots l'autorise
   if (robots.allowsPath(siteUrl.pathname)) {
-    const startKey = siteUrl.toString();
-    if (!eligible.some((u) => u.toString() === startKey)) {
+    const startKey = pageCacheKey(siteUrl.toString());
+    if (!seenEligible.has(startKey)) {
+      seenEligible.add(startKey);
       eligible.unshift(siteUrl);
     }
   }
@@ -173,10 +182,14 @@ export async function analyzeSite(
     });
 
     try {
-      const { status, text, contentType, url } = await fetchText(
+      const { status, text, contentType, url, cached } = await fetchText(
         target.toString(),
+        { cache: fetchCache },
       );
-      await sleep(FETCH_GAP_MS);
+      // Gap poli uniquement après un vrai aller-réseau (pas sur cache hit / dernière page)
+      if (!cached && i < targets.length - 1) {
+        await sleep(FETCH_GAP_MS);
+      }
 
       if (status >= 400) {
         pagesFailed += 1;
@@ -221,7 +234,6 @@ export async function analyzeSite(
 
   const segments: WeightedSegment[] = [];
   const authorNames: string[] = [];
-  const nameHintTexts: string[] = [];
 
   for (const page of pages) {
     const pageW = pageWeightForUrl(page.url, siteUrl);
@@ -238,14 +250,9 @@ export async function analyzeSite(
     push(page.text, FIELD_WEIGHTS.body, "body");
 
     authorNames.push(...page.authors);
-    nameHintTexts.push(page.title, page.h1, page.ogTitle);
   }
 
-  const extraDemote = new Set<string>([
-    ...authorDemoteTerms(authorNames),
-    ...guessPersonNameDemotes(nameHintTexts),
-  ]);
-
+  const extraDemote = authorDemoteTerms([...new Set(authorNames)]);
   // Filtrer les faux positifs Title Case métier déjà exclus côté extract
   for (const bad of [
     "information technology",

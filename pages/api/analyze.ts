@@ -9,6 +9,11 @@ import {
   explainAnalyzeError,
   type AnalyzeResult,
 } from "@/lib/analyze";
+import {
+  METHOD_NOT_ALLOWED,
+  internalApiError,
+  type ApiErrorBody,
+} from "@/lib/api/errors";
 
 export const config = {
   api: {
@@ -19,44 +24,43 @@ export const config = {
   maxDuration: 60,
 };
 
-type ErrorBody = {
-  error: string;
-  code?: string;
-  action?: string;
-};
-
 function writeNdjson(res: NextApiResponse, payload: unknown) {
   res.write(`${JSON.stringify(payload)}\n`);
 }
 
+function parseUrlBody(body: unknown): string {
+  if (typeof body === "object" && body !== null && "url" in body) {
+    const url = (body as { url?: unknown }).url;
+    return typeof url === "string" ? url : "";
+  }
+  if (typeof body === "string") {
+    try {
+      const parsed = JSON.parse(body) as { url?: unknown };
+      return typeof parsed.url === "string" ? parsed.url : "";
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<AnalyzeResult | ErrorBody>,
+  res: NextApiResponse<AnalyzeResult | ApiErrorBody>,
 ) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res
-      .status(405)
-      .json({ error: "Méthode non autorisée.", code: "METHOD" });
+    return res.status(405).json(METHOD_NOT_ALLOWED);
   }
 
-  const url =
-    typeof req.body?.url === "string"
-      ? req.body.url
-      : typeof req.body === "string"
-        ? (() => {
-            try {
-              return JSON.parse(req.body).url as string;
-            } catch {
-              return "";
-            }
-          })()
-        : "";
+  const url = parseUrlBody(req.body);
 
   const wantsStream =
     req.headers.accept?.includes("application/x-ndjson") ||
     req.query.stream === "1" ||
-    req.body?.stream === true;
+    (typeof req.body === "object" &&
+      req.body !== null &&
+      (req.body as { stream?: unknown }).stream === true);
 
   try {
     if (!wantsStream) {
@@ -97,19 +101,13 @@ export default async function handler(
       });
     }
     console.error("[analyze]", error);
+    const internal = internalApiError(
+      "Erreur interne pendant l'analyse.",
+    );
     if (wantsStream && res.headersSent) {
-      writeNdjson(res, {
-        type: "error",
-        error: "Erreur interne pendant l'analyse.",
-        code: "INTERNAL",
-        action: "Réessayez dans un instant.",
-      });
+      writeNdjson(res, { type: "error", ...internal });
       return res.end();
     }
-    return res.status(500).json({
-      error: "Erreur interne pendant l'analyse.",
-      code: "INTERNAL",
-      action: "Réessayez dans un instant.",
-    });
+    return res.status(500).json(internal);
   }
 }

@@ -9,6 +9,11 @@ import {
   type TopicsResult,
 } from "@/lib/ai/topics";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
+import {
+  METHOD_NOT_ALLOWED,
+  internalApiError,
+  type ApiErrorBody,
+} from "@/lib/api/errors";
 
 export const config = {
   api: {
@@ -19,48 +24,52 @@ export const config = {
   maxDuration: 30,
 };
 
-type ErrorBody = { error: string; code?: string; action?: string };
-
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<TopicsResult | ErrorBody>,
+  res: NextApiResponse<TopicsResult | ApiErrorBody>,
 ) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res
-      .status(405)
-      .json({ error: "Méthode non autorisée.", code: "METHOD" });
+    return res.status(405).json(METHOD_NOT_ALLOWED);
   }
 
-  const body = req.body ?? {};
-  const host = typeof body.host === "string" ? body.host.trim() : "";
-  const domainGuess =
-    typeof body.domainGuess === "string" ? body.domainGuess.trim() : "";
-  const keywords = Array.isArray(body.keywords)
-    ? (body.keywords as KeywordHit[]).slice(0, 40)
-    : [];
-  const blogPosts = Array.isArray(body.blogPosts)
-    ? (body.blogPosts as BlogPostRef[]).slice(0, 20)
-    : [];
+  try {
+    const body = req.body ?? {};
+    const host = typeof body.host === "string" ? body.host.trim() : "";
+    const domainGuess =
+      typeof body.domainGuess === "string" ? body.domainGuess.trim() : "";
+    const keywords = Array.isArray(body.keywords)
+      ? (body.keywords as KeywordHit[]).slice(0, 40)
+      : [];
+    const blogPosts = Array.isArray(body.blogPosts)
+      ? (body.blogPosts as BlogPostRef[]).slice(0, 20)
+      : [];
 
-  if (!host && !domainGuess && keywords.length === 0) {
-    return res.status(400).json({
-      error: "Contexte d'analyse manquant pour les sujets IA.",
-      code: "MISSING_CONTEXT",
-      action: "Relancez d’abord l’analyse d’URL.",
+    if (!host && !domainGuess && keywords.length === 0) {
+      return res.status(400).json({
+        error: "Contexte d'analyse manquant pour les sujets IA.",
+        code: "MISSING_CONTEXT",
+        action: "Relancez d’abord l’analyse d’URL.",
+      });
+    }
+
+    const result = await generateTopicTitles({
+      host,
+      domainGuess,
+      keywords,
+      blogPosts,
     });
+
+    const topics = result.topics.slice(0, MAX_AI_TOPICS);
+    return res.status(200).json({
+      ...result,
+      topics,
+      titles: topics.map((t) => t.title),
+    });
+  } catch (error) {
+    console.error("[topics]", error);
+    return res
+      .status(500)
+      .json(internalApiError("Erreur interne pendant la génération des sujets."));
   }
-
-  const result = await generateTopicTitles({
-    host,
-    domainGuess,
-    keywords,
-    blogPosts,
-  });
-
-  return res.status(200).json({
-    ...result,
-    topics: result.topics.slice(0, MAX_AI_TOPICS),
-    titles: result.topics.map((t) => t.title).slice(0, MAX_AI_TOPICS),
-  });
 }

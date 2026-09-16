@@ -9,6 +9,8 @@ import {
   MAX_SITEMAP_RAW,
   MAX_SITEMAP_URLS,
   originFromUrl,
+  pageCacheKey,
+  type FetchCache,
 } from "./http";
 import { prioritizePages } from "./page-priority";
 import type { RobotsPolicy } from "./robots";
@@ -46,17 +48,31 @@ function scoreSitemapChild(url: string): number {
   return score;
 }
 
+function uniqueByPageKey(urls: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    const key = pageCacheKey(url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(url);
+  }
+  return out;
+}
+
 async function collectFromSitemap(
   sitemapUrl: string,
   origin: string,
+  cache: FetchCache | undefined,
   depth = 0,
 ): Promise<string[]> {
   if (depth > 2) return [];
 
-  const { status, text, contentType } = await fetchText(sitemapUrl, {
+  const { status, text, contentType, cached } = await fetchText(sitemapUrl, {
     accept: "application/xml,text/xml,*/*;q=0.8",
+    cache,
   });
-  await sleep(FETCH_GAP_MS);
+  if (!cached) await sleep(FETCH_GAP_MS);
 
   if (status >= 400) return [];
   if (
@@ -77,7 +93,7 @@ async function collectFromSitemap(
     const nested: string[] = [];
     for (const child of children.slice(0, 8)) {
       if (!sameHost(child, origin) && !child.includes("sitemap")) continue;
-      const more = await collectFromSitemap(child, origin, depth + 1);
+      const more = await collectFromSitemap(child, origin, cache, depth + 1);
       nested.push(...more);
       if (nested.length >= MAX_SITEMAP_RAW) break;
     }
@@ -88,9 +104,12 @@ async function collectFromSitemap(
 }
 
 /** Découverte légère : liens internes sur une page HTML (homepage ou landing). */
-async function discoverLinksFromPage(pageUrl: string): Promise<string[]> {
-  const { status, text } = await fetchText(pageUrl);
-  await sleep(FETCH_GAP_MS);
+async function discoverLinksFromPage(
+  pageUrl: string,
+  cache?: FetchCache,
+): Promise<string[]> {
+  const { status, text, cached } = await fetchText(pageUrl, { cache });
+  if (!cached) await sleep(FETCH_GAP_MS);
   if (status >= 400) return [pageUrl];
 
   const origin = originFromUrl(new URL(pageUrl));
@@ -124,12 +143,15 @@ async function discoverLinksFromPage(pageUrl: string): Promise<string[]> {
   return [...hrefs];
 }
 
-async function discoverFromHomepage(origin: string): Promise<string[]> {
-  return discoverLinksFromPage(origin);
+async function discoverFromHomepage(
+  origin: string,
+  cache?: FetchCache,
+): Promise<string[]> {
+  return discoverLinksFromPage(origin, cache);
 }
 
 function rankDiscoveryPool(rawUrls: string[], siteUrl: URL): string[] {
-  const parsed = rawUrls
+  const parsed = uniqueByPageKey(rawUrls)
     .map((u) => {
       try {
         return new URL(u);
@@ -140,7 +162,8 @@ function rankDiscoveryPool(rawUrls: string[], siteUrl: URL): string[] {
     .filter((u): u is URL => Boolean(u));
 
   // Toujours injecter l'URL de départ dans le pool
-  if (!parsed.some((u) => u.toString() === siteUrl.toString())) {
+  const startKey = pageCacheKey(siteUrl.toString());
+  if (!parsed.some((u) => pageCacheKey(u.toString()) === startKey)) {
     parsed.unshift(siteUrl);
   }
 
@@ -158,6 +181,7 @@ export type PageDiscovery = {
 export async function discoverPages(
   siteUrl: URL,
   robots: RobotsPolicy,
+  cache?: FetchCache,
 ): Promise<PageDiscovery> {
   const origin = originFromUrl(siteUrl);
   const warnings: string[] = [];
@@ -173,14 +197,17 @@ export async function discoverPages(
     if (!sitemapUrl || tried.has(sitemapUrl)) continue;
     tried.add(sitemapUrl);
     try {
-      const urls = await collectFromSitemap(sitemapUrl, origin);
-      const unique = [...new Set(urls)].slice(0, MAX_SITEMAP_RAW);
+      const urls = await collectFromSitemap(sitemapUrl, origin, cache);
+      const unique = uniqueByPageKey(urls).slice(0, MAX_SITEMAP_RAW);
       if (unique.length > 0) {
         // Enrichit avec les liens de la landing saisie (souvent /fr/ produit)
         let merged = unique;
         try {
-          const fromStart = await discoverLinksFromPage(siteUrl.toString());
-          merged = [...new Set([...fromStart, ...unique])].slice(
+          const fromStart = await discoverLinksFromPage(
+            siteUrl.toString(),
+            cache,
+          );
+          merged = uniqueByPageKey([...fromStart, ...unique]).slice(
             0,
             MAX_SITEMAP_RAW,
           );
@@ -205,11 +232,14 @@ export async function discoverPages(
   );
 
   try {
-    const discovered = await discoverFromHomepage(origin);
+    const discovered = await discoverFromHomepage(origin, cache);
     if (discovered.length > 1) {
       return {
         source: "homepage-links",
-        urls: rankDiscoveryPool(discovered.slice(0, MAX_SITEMAP_RAW), siteUrl),
+        urls: rankDiscoveryPool(
+          discovered.slice(0, MAX_SITEMAP_RAW),
+          siteUrl,
+        ),
         warnings,
       };
     }

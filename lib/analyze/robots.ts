@@ -2,7 +2,7 @@
  * Parse robots.txt (User-agent: *) : règles allow/disallow et hints sitemap.
  * En cas d'échec, politique permissive par défaut.
  */
-import { fetchText, sleep, FETCH_GAP_MS } from "./http";
+import { fetchText, sleep, FETCH_GAP_MS, type FetchCache } from "./http";
 
 export type RobotsPolicy = {
   fetched: boolean;
@@ -20,12 +20,16 @@ const ALLOW_ALL: RobotsPolicy = {
  * Parse basique de robots.txt pour User-agent: * (POC).
  * En cas d'échec, on autorise par défaut (politesse best-effort).
  */
-export async function loadRobotsPolicy(origin: string): Promise<RobotsPolicy> {
+export async function loadRobotsPolicy(
+  origin: string,
+  cache?: FetchCache,
+): Promise<RobotsPolicy> {
   try {
-    const { status, text } = await fetchText(`${origin}/robots.txt`, {
+    const { status, text, cached } = await fetchText(`${origin}/robots.txt`, {
       accept: "text/plain,*/*;q=0.8",
+      cache,
     });
-    await sleep(FETCH_GAP_MS);
+    if (!cached) await sleep(FETCH_GAP_MS);
 
     if (status >= 400) {
       return ALLOW_ALL;

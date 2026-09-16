@@ -3,6 +3,7 @@
  * plutôt que légal, login, auteurs, carrières, etc.
  * Tient compte de la locale de l'URL de départ (ex. /fr/).
  */
+import { pageCacheKey } from "./http";
 
 export type LocaleHint = "fr" | "en" | "neutral";
 
@@ -281,7 +282,7 @@ export function prioritizePages(
   const unique: URL[] = [];
 
   for (const u of urls) {
-    const key = u.toString();
+    const key = pageCacheKey(u.toString());
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(u);

@@ -13,6 +13,18 @@ export const MAX_SITEMAP_RAW = 400;
 export const FETCH_TIMEOUT_MS = 10_000;
 export const FETCH_GAP_MS = 200;
 
+export type FetchResult = {
+  url: string;
+  status: number;
+  text: string;
+  contentType: string;
+  /** true si servi depuis le cache in-memory de la requête. */
+  cached: boolean;
+};
+
+/** Cache HTML/XML borné à une seule analyse (évite double fetch seed). */
+export type FetchCache = Map<string, Promise<FetchResult>>;
+
 export class AnalyzeError extends Error {
   status: number;
   code: string;
@@ -22,6 +34,17 @@ export class AnalyzeError extends Error {
     this.name = "AnalyzeError";
     this.status = status;
     this.code = code;
+  }
+}
+
+/** Clé canonique pour dédup (/fr vs /fr/, host case). */
+export function pageCacheKey(target: string): string {
+  try {
+    const u = new URL(target);
+    const path = u.pathname.replace(/\/+$/, "") || "/";
+    return `${u.protocol}//${u.hostname.toLowerCase()}${path}`;
+  } catch {
+    return target.trim().toLowerCase();
   }
 }
 
@@ -76,10 +99,17 @@ export function originFromUrl(url: URL): string {
   return url.origin;
 }
 
-export async function fetchText(
+const DEFAULT_ACCEPT =
+  "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
+function cacheSlotKey(target: string, accept: string): string {
+  return `${pageCacheKey(target)}::${accept}`;
+}
+
+async function fetchTextNetwork(
   target: string,
-  options?: { accept?: string },
-): Promise<{ url: string; status: number; text: string; contentType: string }> {
+  accept: string,
+): Promise<FetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -90,7 +120,7 @@ export async function fetchText(
       signal: controller.signal,
       headers: {
         "User-Agent": USER_AGENT,
-        Accept: options?.accept ?? "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        Accept: accept,
         "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
       },
     });
@@ -103,6 +133,7 @@ export async function fetchText(
       status: response.status,
       text,
       contentType,
+      cached: false,
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
@@ -120,6 +151,40 @@ export async function fetchText(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Fetch texte ; `cache` optionnel = mémoire d'une seule analyse
+ * (réutilise la landing déjà lue en discovery).
+ */
+export async function fetchText(
+  target: string,
+  options?: { accept?: string; cache?: FetchCache },
+): Promise<FetchResult> {
+  const accept = options?.accept ?? DEFAULT_ACCEPT;
+  const cache = options?.cache;
+
+  if (!cache) {
+    return fetchTextNetwork(target, accept);
+  }
+
+  const key = cacheSlotKey(target, accept);
+  const existing = cache.get(key);
+  if (existing) {
+    const hit = await existing;
+    return { ...hit, cached: true };
+  }
+
+  const pending = fetchTextNetwork(target, accept).then((result) => {
+    const finalKey = cacheSlotKey(result.url, accept);
+    if (finalKey !== key) {
+      cache.set(finalKey, Promise.resolve({ ...result, cached: true }));
+    }
+    return result;
+  });
+
+  cache.set(key, pending);
+  return pending;
 }
 
 export function sleep(ms: number): Promise<void> {
