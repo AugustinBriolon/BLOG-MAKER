@@ -527,6 +527,7 @@ export default function Home() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!url.trim()) return;
     setAnalyzing(true);
     setProgress({
       phase: "robots",
@@ -651,7 +652,6 @@ export default function Home() {
                   id="site-url"
                   type="url"
                   inputMode="url"
-                  required
                   icon={SearchIcon}
                   placeholder="https://exemple.com"
                   value={url}
@@ -660,6 +660,7 @@ export default function Home() {
                   fontSize={2}
                   padding={3}
                   radius={2}
+                  // Pas de `required` HTML : :invalid vide colore l’input en rouge Sanity.
                 />
               </Box>
               <Button
@@ -667,6 +668,7 @@ export default function Home() {
                 text="Analyser"
                 iconRight={ArrowRightIcon}
                 tone="primary"
+                mode="default"
                 fontSize={2}
                 padding={3}
                 radius={2}
