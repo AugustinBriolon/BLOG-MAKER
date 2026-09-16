@@ -160,10 +160,10 @@ export default function Home() {
               disabled={loading || !url.trim()}
               aria-label="Analyser"
             >
-              <span className="inner">Analyser</span>
-              <span className="circle" aria-hidden="true">
-                <span />
-              </span>
+              <div className="inner">Analyser</div>
+              <div className="circle" aria-hidden="true">
+                <span>→</span>
+              </div>
             </button>
           </form>
 

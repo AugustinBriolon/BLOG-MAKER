@@ -141,120 +141,85 @@ body {
   cursor: not-allowed;
 }
 
-/* ——— Pill hover-reveal arrow (button-02) ——— */
-button.button-02 {
-  --btn-h: 3.15rem;
-  --btn-w: 12rem;
+/* ——— button-02: right circle scale + arrow slide (exact hover-reveal) ——— */
+.button-02 {
+  color: white;
   position: relative;
-  display: inline-block;
-  width: var(--btn-w);
-  height: var(--btn-h);
+  display: flex;
+  align-items: center;
+  height: 48px;
+  width: 220px;
+  flex-shrink: 0;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   font: inherit;
+  font-weight: 600;
   outline: none;
-  vertical-align: middle;
-  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
 @media (max-width: 639px) {
-  button.button-02 {
+  .button-02 {
     width: 100%;
   }
 }
 
-button.button-02 .circle {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 0;
-  display: block;
-  overflow: hidden;
-  width: var(--btn-h);
-  height: var(--btn-h);
-  margin: 0;
+.button-02 .inner,
+.button-02 .circle {
+  background-color: var(--bg-deep);
   border-radius: 999px;
-  background: var(--bg-deep);
-  transition:
-    width var(--duration) var(--ease-out-quart),
-    background-color var(--duration) var(--ease-out-quart),
-    box-shadow var(--duration) var(--ease-out-quart);
-}
-
-button.button-02 .circle > span {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 1.05rem;
-  width: 1.15rem;
-  height: 0.125rem;
-  margin: auto;
-  background: transparent;
-  transition:
-    transform var(--duration) var(--ease-out-quart),
-    background-color var(--duration) var(--ease-out-quart);
-}
-
-button.button-02 .circle > span::before {
-  content: "";
-  position: absolute;
-  top: -0.28rem;
-  right: 0.05rem;
-  width: 0.62rem;
-  height: 0.62rem;
-  border-top: 0.125rem solid var(--bg-soft);
-  border-right: 0.125rem solid var(--bg-soft);
-  transform: rotate(45deg);
-}
-
-button.button-02 .inner {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 1.1rem 0 2.75rem;
-  color: var(--bg-deep);
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1;
-  transition: color var(--duration) var(--ease-out-quart);
+  text-wrap: nowrap;
+  transition: all 0.5s var(--ease-out-quart);
 }
 
-button.button-02:hover:not(:disabled) .circle,
-button.button-02:focus-visible:not(:disabled) .circle {
+.button-02 .inner {
   width: 100%;
-  background: var(--bg-mid);
-  box-shadow: 0 10px 28px rgba(12, 31, 26, 0.22);
+  padding-inline: 60px;
+  position: relative;
+  z-index: 1;
 }
 
-button.button-02:hover:not(:disabled) .circle > span,
-button.button-02:focus-visible:not(:disabled) .circle > span {
-  background: var(--bg-soft);
-  transform: translateX(0.85rem);
+.button-02 .circle {
+  position: absolute;
+  right: 0;
+  width: 48px;
+  scale: 0;
+  transform-origin: left center;
 }
 
-button.button-02:hover:not(:disabled) .inner,
-button.button-02:focus-visible:not(:disabled) .inner {
-  color: var(--bg-soft);
+.button-02 .circle span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  transform: translateX(-100%);
+  transition: all 0.3s var(--ease-out-quart) 0.1s;
 }
 
-button.button-02:active:not(:disabled) .circle {
-  background: var(--accent);
+.button-02:hover:not(:disabled) .inner,
+.button-02:focus-visible:not(:disabled) .inner {
+  width: calc(100% - 52px);
 }
 
-button.button-02:disabled {
+.button-02:hover:not(:disabled) .circle,
+.button-02:focus-visible:not(:disabled) .circle {
+  scale: 1;
+}
+
+.button-02:hover:not(:disabled) .circle span,
+.button-02:focus-visible:not(:disabled) .circle span {
+  transform: translateX(0);
+}
+
+.button-02:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-button.button-02:disabled .circle {
-  box-shadow: none;
 }
 
 /* ——— Results ——— */
