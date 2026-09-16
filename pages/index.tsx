@@ -160,7 +160,7 @@ export default function Home() {
               disabled={loading || !url.trim()}
               aria-label="Analyser"
             >
-              <span className="inner">{loading ? "…" : "Analyser"}</span>
+              <span className="inner">Analyser</span>
               <span className="circle" aria-hidden="true">
                 <span />
               </span>
