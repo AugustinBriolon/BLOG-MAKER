@@ -6,7 +6,10 @@ export const USER_AGENT =
   "BlogMakerSEO-POC/0.1 (+https://github.com/AugustinBriolon/BLOG-MAKER; polite research crawler)";
 
 export const MAX_PAGES = 12;
+/** URLs gardées après priorisation (pool crawl). */
 export const MAX_SITEMAP_URLS = 80;
+/** Collecte brute avant filtrage / priorisation (évite un pool 100 % /author/). */
+export const MAX_SITEMAP_RAW = 400;
 export const FETCH_TIMEOUT_MS = 10_000;
 export const FETCH_GAP_MS = 200;
 

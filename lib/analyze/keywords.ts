@@ -63,7 +63,7 @@ const NOISE_TOKENS = new Set(
 const HOST_FRAGMENTS = new Set(["com", "www", "org", "net", "io", "github"]);
 
 const NOISE_PHRASE_RE =
-  /\b(user account|user accounts|service agreement|privacy policy|cookie policy|month included|github com|com ovh|example domain|await sandbox|tan stack|hit css|becomes first|firefox support)\b/i;
+  /\b(user account|user accounts|service agreement|privacy policy|cookie policy|month included|github com|com ovh|example domain|await sandbox|tan stack|hit css|becomes first|firefox support|general use|personal data|project vercel|copy link|link heading|holiday pay)\b/i;
 
 /** Fold for stopword matching only — display tokens keep accents (NFC). */
 function fold(value: string): string {

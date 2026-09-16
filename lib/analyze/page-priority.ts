@@ -165,9 +165,17 @@ function matchesAny(seg: string, list: string[]): boolean {
   const f = foldSeg(seg);
   return list.some((item) => {
     const t = foldSeg(item);
-    return f === t || f.startsWith(`${t}-`) || f.endsWith(`-${t}`);
+    return (
+      f === t ||
+      f.startsWith(`${t}-`) ||
+      f.endsWith(`-${t}`) ||
+      f.includes(`-${t}-`)
+    );
   });
 }
+
+/** Score au-delà duquel on évite la page si d'autres candidats existent. */
+export const HARD_DEMOTE_SCORE = 80;
 
 function depthPenalty(depth: number): number {
   if (depth <= 1) return 0;
@@ -210,9 +218,9 @@ export function scorePageUrl(
   if (startLocale === "fr") {
     if (candLocale === "fr") score -= 18;
     if (candLocale === "en") score += 28;
-    // Paths without locale on a .com when start was /fr — mild demote
+    // Hors /fr/ sur un .com alors que le départ est FR → pénalité nette
     if (candLocale === "neutral" && !/\.fr$/i.test(candidate.hostname)) {
-      score += 6;
+      score += 22;
     }
   } else if (startLocale === "en") {
     if (candLocale === "en") score -= 10;
@@ -234,6 +242,17 @@ export function scorePageUrl(
   // Author / tag listing patterns often have thin content
   if (/\/author\//i.test(path) || /\/tag\//i.test(path)) score += 70;
   if (/\/authors?\//i.test(path)) score += 70;
+
+  // API reference / SDK docs = noisy tokens for domain guess
+  if (/\/docs\/(rest-api|api|sdk|cli|build-output)\b/i.test(path)) score += 35;
+  if (/\/docs\/integrations\/.*\/(reference|marketplace-api)\b/i.test(path)) {
+    score += 40;
+  }
+  if (/\/(api-reference|openapi|swagger)\b/i.test(path)) score += 35;
+  // Regional pricing crumbs
+  if (/\/pricing\/regional-pricing\b/i.test(path)) score += 30;
+  // Chrome UI docs phrases
+  if (/copy link|link heading/i.test(path)) score += 10;
 
   // File-like or query-ish leftovers (search already stripped)
   if (/\.(pdf|xml|json)$/i.test(path)) score += 100;
@@ -268,7 +287,7 @@ export function prioritizePages(
     unique.push(u);
   }
 
-  return unique
+  const ranked = unique
     .map((u) => ({
       u,
       score: scorePageUrl(u, startUrl, startLocale),
@@ -278,7 +297,12 @@ export function prioritizePages(
         a.score - b.score ||
         a.u.pathname.length - b.u.pathname.length ||
         a.u.pathname.localeCompare(b.u.pathname, "fr"),
-    )
-    .slice(0, limit)
-    .map((x) => x.u);
+    );
+
+  // Drop legal/author/login… when enough better pages exist
+  const preferred = ranked.filter((x) => x.score < HARD_DEMOTE_SCORE);
+  const pool =
+    preferred.length >= Math.min(limit, 6) ? preferred : ranked;
+
+  return pool.slice(0, limit).map((x) => x.u);
 }
