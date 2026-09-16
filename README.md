@@ -4,15 +4,17 @@ SaaS de génération d’articles de blog pour renforcer le trafic et le SEO d�
 
 ## Direction V1 — Sanity-first
 
-**Blog Maker for Sanity** : UI type Studio (surfaces plates, chrome utilitaire, accent bleu) et scaffolding d’intégration CMS.
+**Blog Maker for Sanity** : UI réelle **`@sanity/ui`** (ThemeProvider + `buildTheme` + `styles.css`) + scaffolding CMS.
 
 | Étape | Statut |
 | --- | --- |
 | Analyse → sujets → brouillon | ✅ POC |
 | Plan éditorial volume | ⏸ Parké (composant conservé, appel commenté) |
-| Publish Sanity | 🧩 Stub (`lib/sanity/*` + `POST /api/sanity/publish`) |
+| Publish Sanity | 🧩 Stub API + bouton UI « Publier sur Sanity » |
 
-Après un brouillon markdown, brancher l’UI sur `POST /api/sanity/publish` avec `{ title, markdown }` (nécessite `NEXT_PUBLIC_SANITY_PROJECT_ID` + `SANITY_API_WRITE_TOKEN`). Le document créé est un `post` avec `bodyMarkdown` — à mapper vers Portable Text / schéma Studio ensuite.
+Packages UI : `@sanity/ui` ^4, `@sanity/icons`, `styled-components` → `@sanity/css-in-js` (peer React 19). Brancher dans `pages/_app.tsx` (Pages Router). Voir [docs Sanity UI](https://www.sanity.io/ui/docs).
+
+Publish : `POST /api/sanity/publish` avec `{ title, markdown }` (`NEXT_PUBLIC_SANITY_PROJECT_ID` + `SANITY_API_WRITE_TOKEN`). Document `post` + `bodyMarkdown` — Portable Text / schéma Studio ensuite.
 
 ## Pitch produit (court)
 
@@ -24,7 +26,8 @@ Next.js **Pages Router** (App Router non utilisé pour ce POC).
 
 | Couche | Rôle |
 | --- | --- |
-| `pages/index.tsx` | UI progressive (progress crawl, skeletons, lecteur MD) |
+| `pages/_app.tsx` | `ThemeProvider` + `@sanity/ui/styles.css` |
+| `pages/index.tsx` | UI `@sanity/ui` (analyse → sujets → brouillon → publish) |
 | `pages/api/analyze.ts` | Crawl + extraction + mots-clés (+ stream NDJSON optionnel) |
 | `pages/api/topics.ts` | 1–3 titres via AI Gateway |
 | `pages/api/draft.ts` | Brouillon markdown via AI Gateway |
@@ -32,7 +35,7 @@ Next.js **Pages Router** (App Router non utilisé pour ce POC).
 | `lib/analyze/*` | Pipeline SEO sans LLM |
 | `lib/ai/*` | Prompts / appels sujets & brouillon |
 | `lib/sanity/*` | Client `@sanity/client`, env, publish stub |
-| `components/*` | UI (status, Number Flow, markdown, shadcn) |
+| `components/*` | Markdown reader (Sanity UI), status, Number Flow ; shadcn réservé au plan parké |
 
 ## Pipeline
 
@@ -72,7 +75,7 @@ Après analyse, l’UI suit ce narratif :
 1. **Domaine** — positionnement du site
 2. ~~**Plan éditorial**~~ — volume (parké V1 Sanity)
 3. **Sujets** — propositions IA
-4. **Brouillon** — draft d’un sujet sélectionné
+4. **Brouillon** — draft d’un sujet sélectionné (+ bouton publish Sanity)
 5. **Mots-clés** — évidence, replié par défaut
 6. **Pages** — échantillon, replié par défaut
 
@@ -127,9 +130,9 @@ curl -s -X POST http://localhost:3000/api/analyze \
 | `lib/analyze/` | robots, sitemap, http poli, extract, keywords, priorisation URL, blog-posts |
 | `lib/ai/` | topics, draft, contexte date (anti spam année) |
 | `lib/sanity/` | env, client `@sanity/client`, publish stub |
-| `components/` | lecteur markdown, status swap, Number Flow, plan volume (parké), UI shadcn |
+| `components/` | lecteur markdown (`@sanity/ui`), status swap, Number Flow, plan volume (parké) |
 | `pages/api/` | `analyze`, `topics`, `draft`, `sanity/publish` |
-| `styles/globals.css` | tokens Studio-like + `.button-02` |
+| `styles/globals.css` | minimal (prose draft + status-swap) ; design system = `@sanity/ui` |
 
 ## Limites / scope POC
 
