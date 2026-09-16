@@ -70,10 +70,19 @@ const DEMO_RESULT: AnalyzeResult = {
   discoverySource: "homepage-only",
   pagesAnalyzed: 1,
   pagesFailed: 0,
-  pageSamples: [],
+  pageSamples: [
+    {
+      url: "https://example.com/",
+      title: "Accueil — démo",
+      wordCount: 120,
+    },
+  ],
   blogPosts: [],
-  totalSignificantTokens: 0,
-  keywords: [],
+  totalSignificantTokens: 120,
+  keywords: [
+    { term: "facturation", count: 12, kind: "unigram" },
+    { term: "cabinet", count: 9, kind: "unigram" },
+  ],
   domainGuess: "Démo lecteur markdown",
   warnings: [],
 };
