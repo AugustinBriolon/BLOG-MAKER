@@ -11,10 +11,11 @@ import type { TopicSuggestion } from "@/lib/ai/topics";
 import { NumberFlowValue } from "@/components/number-flow-value";
 import { StatusSwap } from "@/components/status-swap";
 import { MarkdownReader } from "@/components/markdown-reader";
-import {
-  EditorialVolumePlan,
-  EditorialVolumePlanSkeleton,
-} from "@/components/editorial-volume-plan";
+// Mis de côté pour V1 Sanity — plan volume réactivable plus tard.
+// import {
+//   EditorialVolumePlan,
+//   EditorialVolumePlanSkeleton,
+// } from "@/components/editorial-volume-plan";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -103,7 +104,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-medium uppercase text-muted-foreground">
+    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
       {children}
     </p>
   );
@@ -207,7 +208,7 @@ function PagesSkeleton() {
 function DraftSkeleton() {
   return (
     <div
-      className="mt-4 space-y-3 rounded-xl border border-border bg-background/70 p-4"
+      className="mt-4 space-y-3 rounded-md border border-border bg-muted/40 p-4"
       aria-busy="true"
     >
       <Skeleton className="h-5 w-3/5" />
@@ -545,24 +546,43 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Blog Maker</title>
+        <title>Blog Maker for Sanity</title>
         <meta
           name="description"
-          content="Analyse SEO : URL → sujets IA → brouillon article."
+          content="Blog Maker for Sanity — URL → sujets IA → brouillon → publish Sanity."
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-24 pt-14 sm:px-8 sm:pb-16 sm:pt-20">
-        <header className="animate-rise">
-          <p className="font-heading text-5xl font-bold text-foreground sm:text-6xl">
-            Blog Maker
+      <div className="studio-chrome sticky top-0 z-40">
+        <div className="mx-auto flex h-12 w-full max-w-3xl items-center justify-between gap-3 px-5 sm:px-8">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="font-heading truncate text-[15px] font-semibold tracking-tight text-foreground">
+              Blog Maker
+            </span>
+            <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              for Sanity
+            </span>
+          </div>
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            Analyse → sujets → brouillon
+          </span>
+        </div>
+      </div>
+
+      <main className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-3xl flex-col px-5 pb-20 pt-8 sm:px-8 sm:pb-14 sm:pt-10">
+        <header className="animate-rise space-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-[1.75rem]">
+            Analyser un site
+          </h1>
+          <p className="max-w-xl text-sm text-muted-foreground">
+            Crawl SEO, sujets IA et brouillon prêts pour Sanity Studio.
           </p>
         </header>
 
         <form
           onSubmit={onSubmit}
-          className="analyze-form animate-rise-delay mt-10 flex w-full flex-col gap-3 sm:flex-row sm:items-center"
+          className="analyze-form animate-rise-delay mt-6 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center"
         >
           <label className="sr-only" htmlFor="site-url">
             URL du site
@@ -576,7 +596,7 @@ export default function Home() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             disabled={analyzing}
-            className="h-12 flex-1 rounded-full bg-background/80 px-5 text-base shadow-xs backdrop-blur-sm"
+            className="h-10 flex-1 rounded-md bg-card px-3 text-sm shadow-none"
           />
           <button
             type="submit"
@@ -604,14 +624,14 @@ export default function Home() {
         )}
 
         {showWorkspace && (
-          <section className="mt-12 space-y-10">
+          <section className="mt-8 space-y-8">
             {/* 1. Domaine */}
             {analyzing && !viewResult ? (
               <DomainSkeleton />
             ) : viewResult ? (
-              <div>
+              <div className="rounded-md border border-border bg-card p-4 sm:p-5">
                 <SectionLabel>Domaine</SectionLabel>
-                <p className="font-heading mt-2 text-2xl font-semibold leading-snug text-foreground">
+                <p className="font-heading mt-2 text-xl font-semibold leading-snug text-foreground sm:text-2xl">
                   {viewResult.domainGuess}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -632,25 +652,25 @@ export default function Home() {
               </div>
             ) : null}
 
-            {/* 2. Plan éditorial (volume, sans IA) */}
-            {analyzing && !viewResult ? (
+            {/* 2. Plan éditorial (volume) — mis de côté pour V1 Sanity */}
+            {/* {analyzing && !viewResult ? (
               <EditorialVolumePlanSkeleton />
             ) : viewResult ? (
               <EditorialVolumePlan />
-            ) : null}
+            ) : null} */}
 
             {/* 3. Sujets + 4. Brouillon */}
             {analyzing && !viewResult ? (
               <TopicsSkeleton withLabel />
             ) : viewResult ? (
-              <div>
+              <div className="rounded-md border border-border bg-card p-4 sm:p-5">
                 <SectionLabel>Sujets</SectionLabel>
                 {topicsLoading ? (
                   <div className="mt-4">
                     <TopicsSkeleton />
                   </div>
                 ) : viewTopics.length > 0 ? (
-                  <ul className="mt-4 space-y-3">
+                  <ul className="mt-3 space-y-2">
                     {viewTopics.map((topic) => {
                       const selected = viewSelectedTopic === topic.title;
                       return (
@@ -663,10 +683,10 @@ export default function Home() {
                               setDraftError(null);
                             }}
                             className={cn(
-                              "w-full rounded-xl border px-4 py-3 text-left transition-colors",
+                              "w-full rounded-md border px-3.5 py-2.5 text-left transition-colors",
                               selected
-                                ? "border-foreground/25 bg-foreground/[0.04]"
-                                : "border-transparent hover:bg-muted/60",
+                                ? "border-primary/35 bg-accent"
+                                : "border-transparent hover:bg-muted",
                             )}
                           >
                             <div className="flex flex-wrap items-center gap-2">
@@ -682,7 +702,7 @@ export default function Home() {
                                 </span>
                               ) : null}
                             </div>
-                            <p className="font-heading mt-2 text-lg font-semibold leading-snug text-foreground">
+                            <p className="font-heading mt-1.5 text-base font-semibold leading-snug text-foreground sm:text-lg">
                               {topic.title}
                             </p>
                             {topic.reason ? (
@@ -705,7 +725,7 @@ export default function Home() {
                 )}
 
                 {viewTopics.length > 0 && (
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
                     <button
                       type="button"
                       className="button-02 button-02--compact"
@@ -721,14 +741,13 @@ export default function Home() {
                       </div>
                     </button>
                     <p className="text-xs text-muted-foreground">
-                      Étape séparée : brouillon markdown (outline + intro +
-                      H2).
+                      Brouillon markdown — prochaine étape : publish Sanity.
                     </p>
                   </div>
                 )}
 
                 {(draftLoading || viewDraftMarkdown || draftError) && (
-                  <div className="mt-8">
+                  <div className="mt-6">
                     <SectionLabel>Brouillon</SectionLabel>
                     {draftLoading ? (
                       <DraftSkeleton />

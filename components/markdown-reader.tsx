@@ -45,11 +45,11 @@ export function MarkdownReader({ markdown, className }: Props) {
       </div>
 
       {showRaw ? (
-        <pre className="draft-markdown overflow-x-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-sm leading-relaxed text-foreground">
+        <pre className="draft-markdown overflow-x-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-4 text-sm leading-relaxed text-foreground">
           {markdown}
         </pre>
       ) : (
-        <article className="draft-prose rounded-xl border border-border bg-background/70 p-5 sm:p-6">
+        <article className="draft-prose rounded-md border border-border bg-muted/30 p-4 sm:p-5">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
         </article>
       )}
