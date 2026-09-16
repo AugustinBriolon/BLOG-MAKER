@@ -21,9 +21,11 @@ function tokenize(text: string): string[] {
     .split(/[\s/_·•|]+/)
     .map((t) => t.replace(/^'+|'+$/g, "").replace(/^-+|-+$/g, ""))
     .filter((t) => {
-      if (!t || t.length < 3) return false;
+      if (!t || t.length < 3 || t.length > 32) return false;
       if (/^\d+$/.test(t)) return false;
       if (FOLDED_STOPWORDS.has(t)) return false;
+      // Écarte le bruit type blobs collés sans voyelle
+      if (t.length > 8 && !/[aeiouy]/.test(t)) return false;
       return true;
     });
 }
