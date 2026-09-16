@@ -218,15 +218,10 @@ export function analyzeKeywords(
   };
 }
 
-export function inferTopicsAndDomain(
+export function inferDomain(
   keywords: KeywordHit[],
   siteHost: string,
-  titles: string[],
-): {
-  domainGuess: string;
-  topics: string[];
-} {
-  // Prefer multi-word phrases for domain + topics
+): string {
   const phrases = keywords.filter((k) => k.kind === "bigram").slice(0, 10);
   const unigrams = keywords.filter((k) => k.kind === "unigram").slice(0, 10);
 
@@ -240,34 +235,15 @@ export function inferTopicsAndDomain(
     ...unigrams.slice(0, 3).map((k) => k.term),
   ].slice(0, 3);
 
-  const domainGuess =
-    domainSeeds.length >= 2
-      ? `Site orienté « ${domainSeeds.join(", ")} »${
-          brandish ? ` (${brandish})` : ""
-        }`
-      : brandish
-        ? `Site « ${brandish} » — signaux textuels encore limités`
-        : "Domaine difficile à inférer avec le corpus actuel";
+  if (domainSeeds.length >= 2) {
+    return `Site orienté « ${domainSeeds.join(", ")} »${
+      brandish ? ` (${brandish})` : ""
+    }`;
+  }
 
-  const titleTokens = tokenize(titles.join(" "));
-  const titleHints = [...new Set(titleTokens)]
-    .filter((t) => t.length > 4 && !FOLDED_STOPWORDS.has(fold(t)))
-    .slice(0, 5);
+  if (brandish) {
+    return `Site « ${brandish} » — signaux textuels encore limités`;
+  }
 
-  const topicSeeds = [
-    ...phrases.slice(0, 7).map((k) => k.term),
-    ...unigrams.slice(0, 5).map((k) => k.term),
-    ...titleHints,
-  ];
-
-  const topics = [...new Set(topicSeeds)]
-    .slice(0, 10)
-    .map((term) => {
-      if (term.includes(" ")) {
-        return `Guide : ${term}`;
-      }
-      return `Idées autour de « ${term} »`;
-    });
-
-  return { domainGuess, topics };
+  return "Domaine difficile à inférer avec le corpus actuel";
 }

@@ -1,3 +1,4 @@
+import { detectBlogPosts, type BlogPostRef } from "./blog-posts";
 import { extractPageContent, type ExtractedPage } from "./extract";
 import {
   AnalyzeError,
@@ -8,7 +9,7 @@ import {
   originFromUrl,
   sleep,
 } from "./http";
-import { analyzeKeywords, inferTopicsAndDomain, type KeywordHit } from "./keywords";
+import { analyzeKeywords, inferDomain, type KeywordHit } from "./keywords";
 import { loadRobotsPolicy } from "./robots";
 import { discoverPages } from "./sitemap";
 
@@ -23,10 +24,10 @@ export type AnalyzeResult = {
     title: string;
     wordCount: number;
   }>;
+  blogPosts: BlogPostRef[];
   totalSignificantTokens: number;
   keywords: KeywordHit[];
   domainGuess: string;
-  topics: string[];
   warnings: string[];
 };
 
@@ -58,7 +59,6 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
     );
   }
 
-  // Prefer homepage first, then diversity by path depth
   const sorted = [...eligible].sort((a, b) => {
     const aHome = a.pathname === "/" ? 0 : 1;
     const bHome = b.pathname === "/" ? 0 : 1;
@@ -72,7 +72,9 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
 
   for (const target of targets) {
     try {
-      const { status, text, contentType, url } = await fetchText(target.toString());
+      const { status, text, contentType, url } = await fetchText(
+        target.toString(),
+      );
       await sleep(FETCH_GAP_MS);
 
       if (status >= 400) {
@@ -117,11 +119,12 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
     );
   }
 
-  const { domainGuess, topics } = inferTopicsAndDomain(
-    keywords,
-    siteUrl.hostname,
-    pages.map((p) => p.title),
-  );
+  const pageRefs = pages.map((p) => ({
+    url: p.url,
+    title: p.title || "(sans titre)",
+  }));
+  const blogPosts = detectBlogPosts(pageRefs);
+  const domainGuess = inferDomain(keywords, siteUrl.hostname);
 
   return {
     siteUrl: origin,
@@ -134,13 +137,14 @@ export async function analyzeSite(rawUrl: string): Promise<AnalyzeResult> {
       title: p.title || "(sans titre)",
       wordCount: p.wordCount,
     })),
+    blogPosts,
     totalSignificantTokens,
     keywords,
     domainGuess,
-    topics,
     warnings: [...new Set(warnings)].slice(0, 12),
   };
 }
 
 export { AnalyzeError, normalizeSiteUrl };
 export type { KeywordHit } from "./keywords";
+export type { BlogPostRef } from "./blog-posts";

@@ -22,71 +22,111 @@ const SOURCE_LABEL: Record<string, string> = {
   "homepage-only": "accueil",
 };
 
-function LoadingSkeleton() {
+function DomainSkeleton() {
   return (
-    <section
-      className="animate-rise-late mt-12 space-y-10"
-      aria-busy="true"
-      aria-live="polite"
-    >
-      <div>
-        <div className="skeleton h-3 w-28" />
-        <div className="skeleton skeleton-block mt-3 h-8 w-full max-w-xl" />
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:max-w-md">
-          <div className="skeleton skeleton-block h-12" />
-          <div className="skeleton skeleton-block h-12" />
-        </div>
+    <div aria-busy="true">
+      <div className="skeleton h-3 w-28" />
+      <div className="skeleton skeleton-block mt-3 h-8 w-full max-w-xl" />
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:max-w-md">
+        <div className="skeleton skeleton-block h-12" />
+        <div className="skeleton skeleton-block h-12" />
       </div>
+    </div>
+  );
+}
 
-      <div>
-        <div className="skeleton h-3 w-24" />
-        <div className="mt-4 flex flex-wrap gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="skeleton h-8"
-              style={{ width: `${72 + ((i * 17) % 48)}px` }}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="skeleton h-3 w-32" />
-        <div className="mt-5 space-y-0">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between gap-4 border-b border-[var(--line)] py-3 first:border-t"
-            >
-              <div className="flex flex-1 items-center gap-3">
-                <div className="skeleton h-3 w-5" />
-                <div
-                  className="skeleton h-3"
-                  style={{ width: `${38 + ((i * 11) % 42)}%` }}
-                />
-              </div>
-              <div className="skeleton h-3 w-8" />
+function KeywordsSkeleton() {
+  return (
+    <div aria-busy="true">
+      <div className="skeleton h-3 w-32" />
+      <div className="mt-5 space-y-0">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between gap-4 border-b border-[var(--line)] py-3 first:border-t"
+          >
+            <div className="flex flex-1 items-center gap-3">
+              <div className="skeleton h-3 w-5" />
+              <div
+                className="skeleton h-3"
+                style={{ width: `${38 + ((i * 11) % 42)}%` }}
+              />
             </div>
-          ))}
-        </div>
+            <div className="skeleton h-3 w-8" />
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
+  );
+}
+
+function TopicsSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true">
+      <div className="skeleton skeleton-block h-10 w-full max-w-lg" />
+      <div className="skeleton skeleton-block h-10 w-4/5 max-w-md" />
+      <div className="skeleton skeleton-block h-10 w-3/5 max-w-sm" />
+    </div>
   );
 }
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [topicsLoading, setTopicsLoading] = useState(false);
   const [error, setError] = useState<UiError | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [topicTitles, setTopicTitles] = useState<string[]>([]);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
+
+  async function loadTopics(analysis: AnalyzeResult) {
+    setTopicsLoading(true);
+    setTopicsError(null);
+    setTopicTitles([]);
+
+    try {
+      const response = await fetch("/api/topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          host: analysis.host,
+          domainGuess: analysis.domainGuess,
+          keywords: analysis.keywords.slice(0, 20),
+          blogPosts: analysis.blogPosts,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        titles?: string[];
+        error?: string;
+        unavailable?: boolean;
+      };
+
+      if (!response.ok) {
+        setTopicsError(data.error || "Sujets IA indisponibles.");
+        return;
+      }
+
+      setTopicTitles(data.titles ?? []);
+      if (data.unavailable || data.error) {
+        setTopicsError(data.error || "Sujets IA indisponibles.");
+      }
+    } catch {
+      setTopicsError("Sujets IA indisponibles.");
+    } finally {
+      setTopicsLoading(false);
+    }
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
+    setAnalyzing(true);
+    setTopicsLoading(false);
     setError(null);
     setResult(null);
+    setTopicTitles([]);
+    setTopicsError(null);
     setShowAllKeywords(false);
 
     try {
@@ -104,16 +144,21 @@ export default function Home() {
         setError({
           message: data.error || "L'analyse a échoué.",
         });
+        setAnalyzing(false);
         return;
       }
 
+      // Paint keywords/domain immediately — topics load separately
       setResult(data);
+      setAnalyzing(false);
+      void loadTopics(data);
     } catch {
       setError({ message: "Serveur injoignable." });
-    } finally {
-      setLoading(false);
+      setAnalyzing(false);
     }
   }
+
+  const showResults = Boolean(result) && !analyzing;
 
   return (
     <>
@@ -121,7 +166,7 @@ export default function Home() {
         <title>Blog Maker</title>
         <meta
           name="description"
-          content="Analyse SEO : URL → mots-clés et sujets."
+          content="Analyse SEO : URL → mots-clés et sujets IA."
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
@@ -141,7 +186,10 @@ export default function Home() {
             </p>
           </header>
 
-          <form onSubmit={onSubmit} className="poc-form animate-rise-delay mt-10">
+          <form
+            onSubmit={onSubmit}
+            className="poc-form animate-rise-delay mt-10"
+          >
             <label className="sr-only" htmlFor="site-url">
               URL du site
             </label>
@@ -154,12 +202,12 @@ export default function Home() {
               placeholder="https://exemple.com"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              disabled={loading}
+              disabled={analyzing}
             />
             <button
               type="submit"
               className="button-02"
-              disabled={loading || !url.trim()}
+              disabled={analyzing || !url.trim()}
               aria-label="Analyser"
             >
               <div className="inner">Analyser</div>
@@ -169,89 +217,142 @@ export default function Home() {
             </button>
           </form>
 
-          {loading && <LoadingSkeleton />}
-
-          {error && !loading && (
-            <div
-              role="alert"
-              className="animate-rise-late mt-8 text-sm text-red-800"
-            >
+          {error && !analyzing && (
+            <div role="alert" className="mt-8 text-sm text-red-800">
               {error.message}
             </div>
           )}
 
-          {result && !loading && (
-            <section className="result-section animate-rise-late mt-12 space-y-10">
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                  Domaine
-                </p>
-                <p className="mt-2 font-[family-name:var(--font-bricolage)] text-2xl font-semibold leading-snug text-[var(--bg-deep)]">
-                  {result.domainGuess}
-                </p>
-                <p className="mt-3 text-sm text-[var(--muted)]">
-                  {result.pagesAnalyzed} pages ·{" "}
-                  {SOURCE_LABEL[result.discoverySource] ??
-                    result.discoverySource}
-                  {result.pagesFailed > 0
-                    ? ` · ${result.pagesFailed} échec${result.pagesFailed > 1 ? "s" : ""}`
-                    : ""}
-                </p>
-              </div>
+          {(analyzing || showResults) && (
+            <section className="result-section mt-12 space-y-10">
+              {/* Domaine */}
+              {analyzing && !result ? (
+                <DomainSkeleton />
+              ) : result ? (
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Domaine
+                  </p>
+                  <p className="mt-2 font-[family-name:var(--font-bricolage)] text-2xl font-semibold leading-snug text-[var(--bg-deep)]">
+                    {result.domainGuess}
+                  </p>
+                  <p className="mt-3 text-sm text-[var(--muted)]">
+                    {result.pagesAnalyzed} pages ·{" "}
+                    {SOURCE_LABEL[result.discoverySource] ??
+                      result.discoverySource}
+                    {result.pagesFailed > 0
+                      ? ` · ${result.pagesFailed} échec${result.pagesFailed > 1 ? "s" : ""}`
+                      : ""}
+                  </p>
+                </div>
+              ) : null}
 
-              <div>
-                <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                  Sujets
-                </h2>
-                <ul className="mt-4 flex flex-wrap gap-2">
-                  {result.topics.map((topic) => (
-                    <li key={topic} className="topic-chip">
-                      {topic}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div>
-                <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                  Mots-clés
-                </h2>
-                <ol className="mt-4">
-                  {(showAllKeywords
-                    ? result.keywords
-                    : result.keywords.slice(0, 10)
-                  ).map((kw, index) => (
-                    <li
-                      key={`${kw.kind}-${kw.term}`}
-                      className="keyword-row text-sm"
-                    >
-                      <span className="flex min-w-0 items-baseline gap-3">
-                        <span className="w-5 shrink-0 text-[var(--muted)]">
-                          {index + 1}
+              {/* Mots-clés */}
+              {analyzing && !result ? (
+                <KeywordsSkeleton />
+              ) : result ? (
+                <div>
+                  <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Mots-clés
+                  </h2>
+                  <ol className="mt-4">
+                    {(showAllKeywords
+                      ? result.keywords
+                      : result.keywords.slice(0, 10)
+                    ).map((kw, index) => (
+                      <li
+                        key={`${kw.kind}-${kw.term}`}
+                        className="keyword-row text-sm"
+                      >
+                        <span className="flex min-w-0 items-baseline gap-3">
+                          <span className="w-5 shrink-0 text-[var(--muted)]">
+                            {index + 1}
+                          </span>
+                          <span className="truncate font-medium">
+                            {kw.term}
+                          </span>
                         </span>
-                        <span className="truncate font-medium">{kw.term}</span>
-                      </span>
-                      <span className="shrink-0 tabular-nums text-[var(--accent)]">
-                        {kw.count}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-                {result.keywords.length > 10 && (
-                  <button
-                    type="button"
-                    className="voir-plus"
-                    onClick={() => setShowAllKeywords((v) => !v)}
-                    aria-expanded={showAllKeywords}
-                  >
-                    {showAllKeywords
-                      ? "Voir moins"
-                      : `Voir plus (${result.keywords.length - 10})`}
-                  </button>
-                )}
-              </div>
+                        <span className="shrink-0 tabular-nums text-[var(--accent)]">
+                          {kw.count}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  {result.keywords.length > 10 && (
+                    <button
+                      type="button"
+                      className="voir-plus"
+                      onClick={() => setShowAllKeywords((v) => !v)}
+                      aria-expanded={showAllKeywords}
+                    >
+                      {showAllKeywords
+                        ? "Voir moins"
+                        : `Voir plus (${result.keywords.length - 10})`}
+                    </button>
+                  )}
+                </div>
+              ) : null}
 
-              {result.pageSamples.length > 0 && (
+              {/* Sujets IA — step séparée (peut rester en skeleton) */}
+              {analyzing && !result ? (
+                <div>
+                  <div className="skeleton h-3 w-24 mb-4" />
+                  <TopicsSkeleton />
+                </div>
+              ) : result ? (
+                <div>
+                  <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Sujets
+                  </h2>
+                  {topicsLoading ? (
+                    <div className="mt-4">
+                      <TopicsSkeleton />
+                    </div>
+                  ) : topicTitles.length > 0 ? (
+                    <ol className="mt-4 space-y-3">
+                      {topicTitles.map((title, index) => (
+                        <li
+                          key={title}
+                          className="font-[family-name:var(--font-bricolage)] text-lg font-semibold leading-snug text-[var(--bg-deep)]"
+                        >
+                          <span className="mr-2 text-sm font-normal text-[var(--muted)]">
+                            {index + 1}.
+                          </span>
+                          {title}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="mt-3 text-sm text-[var(--muted)]">
+                      {topicsError || "Aucun sujet généré."}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
+              {result && result.blogPosts.length > 0 && (
+                <div>
+                  <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Blog détecté
+                  </h2>
+                  <ul className="mt-4 space-y-2">
+                    {result.blogPosts.slice(0, 6).map((page) => (
+                      <li key={page.url} className="text-sm">
+                        <a
+                          href={page.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="page-link"
+                        >
+                          {page.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result && result.pageSamples.length > 0 && (
                 <div>
                   <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
                     Pages
@@ -273,7 +374,7 @@ export default function Home() {
                 </div>
               )}
 
-              {result.warnings.length > 0 && (
+              {result && result.warnings.length > 0 && (
                 <ul className="space-y-1 text-sm text-[var(--muted)]">
                   {result.warnings.map((w) => (
                     <li key={w}>· {w}</li>
