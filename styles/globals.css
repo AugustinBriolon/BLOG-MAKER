@@ -298,6 +298,111 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* Readable markdown article (shadcn-friendly prose) */
+.draft-prose {
+  color: var(--foreground);
+  font-size: 0.975rem;
+  line-height: 1.7;
+}
+
+.draft-prose :where(h1, h2, h3) {
+  font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.draft-prose h1 {
+  font-size: 1.65rem;
+  margin: 0 0 1rem;
+}
+
+.draft-prose h2 {
+  font-size: 1.2rem;
+  margin: 1.75rem 0 0.65rem;
+}
+
+.draft-prose h3 {
+  font-size: 1.05rem;
+  margin: 1.35rem 0 0.5rem;
+}
+
+.draft-prose p {
+  margin: 0.75rem 0;
+}
+
+.draft-prose :where(ul, ol) {
+  margin: 0.75rem 0;
+  padding-left: 1.25rem;
+}
+
+.draft-prose ul {
+  list-style: disc;
+}
+
+.draft-prose ol {
+  list-style: decimal;
+}
+
+.draft-prose li {
+  margin: 0.35rem 0;
+}
+
+.draft-prose li::marker {
+  color: var(--muted-foreground);
+}
+
+.draft-prose :where(strong) {
+  font-weight: 600;
+}
+
+.draft-prose :where(a) {
+  color: var(--chart-3);
+  text-underline-offset: 3px;
+}
+
+.draft-prose :where(a):hover {
+  text-decoration: underline;
+}
+
+.draft-prose :where(hr) {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+.draft-prose :where(blockquote) {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.draft-prose :where(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+  background: color-mix(in oklch, var(--muted) 80%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+}
+
+.draft-prose :where(pre) {
+  overflow-x: auto;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--muted) 55%, transparent);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.draft-prose :where(pre code) {
+  background: transparent;
+  padding: 0;
+}
+
 /* Chatbot-style status line swap (ease-out-quart, match .button-02) */
 .status-swap {
   overflow: hidden;

@@ -4,7 +4,7 @@ import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
 import {
   formatDatePromptBlock,
   getPromptDateContext,
-  refreshOutdatedYearsInTitle,
+  stripYearClutterFromTitle,
 } from "./date-context";
 
 export const MAX_AI_TOPICS = 3;
@@ -107,15 +107,15 @@ Propose entre 1 et ${MAX_AI_TOPICS} sujets de blog.
 ${dateBlock}
 
 Pour chaque sujet, fournis :
-- title : titre d'article concret et actuel (année ${dateCtx.year} si une année est citée)
+- title : titre d'article concret, evergreen ou timely — SANS année dans le titre
 - reason : une demi-phrase (max ~20 mots) expliquant l'opportunité SEO ou l'écart vs le blog existant
 
 Contraintes :
-- Français, orientés SEO, cadrage d'actualité / timely pour le domaine
+- Français, orientés SEO, cadrage d'actualité pour le domaine (sans dater le titre)
 - Alignés domaine + mots-clés
 - Ne duplique PAS les contenus déjà détectés
 - Pas d'emoji, pas de numérotation
-- Interdit : titres datés d'années périmées (ex. « … en 2023 »)
+- Interdit : « en 2023 », « en ${dateCtx.year} », « pour ${dateCtx.year} », ou toute année en suffixe de titre
 
 Site : ${input.host}
 Domaine inféré : ${input.domainGuess}
@@ -137,9 +137,8 @@ ${existing || "(aucun article blog détecté)"}`;
 
     const topics = (output?.topics ?? [])
       .map((t) => ({
-        title: refreshOutdatedYearsInTitle(
+        title: stripYearClutterFromTitle(
           t.title.trim().replace(/^["«]|["»]$/g, ""),
-          dateCtx.year,
         ),
         reason: t.reason.trim().replace(/^["«]|["»]$/g, ""),
       }))

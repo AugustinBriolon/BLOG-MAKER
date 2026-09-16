@@ -4,7 +4,7 @@ import type { BlogPostRef, KeywordHit } from "@/lib/analyze";
 import {
   formatDatePromptBlock,
   getPromptDateContext,
-  refreshOutdatedYearsInTitle,
+  stripYearClutterFromTitle,
 } from "./date-context";
 import {
   DEFAULT_TOPICS_MODEL,
@@ -77,7 +77,7 @@ export async function generateArticleDraft(
 
   const dateCtx = getPromptDateContext();
   const dateBlock = formatDatePromptBlock(dateCtx);
-  const safeTitle = refreshOutdatedYearsInTitle(title, dateCtx.year);
+  const safeTitle = stripYearClutterFromTitle(title);
 
   const prompt = `Tu rédiges un PREMIER BROUILLON d'article de blog SEO (français) pour Blog Maker.
 Ce n'est PAS un roman : brouillon solide, concis, prêt à itérer.
@@ -99,7 +99,7 @@ Contraintes :
 - Mots-clés utiles : ${topKeywords || "(n/a)"}
 - Évite de dupliquer ces contenus existants :
 ${existing || "(aucun)"}
-- Ton professionnel, clair, sans emoji ; cadrage actuel (${dateCtx.year})
+- Ton professionnel, clair, sans emoji ; contenu à jour sans spam d'année dans les titres / H2
 - Sortie : UNIQUEMENT le markdown dans le champ prévu`;
 
   try {

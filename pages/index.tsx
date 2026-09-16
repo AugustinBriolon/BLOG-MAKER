@@ -1,10 +1,12 @@
 import Head from "next/head";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/router";
 import { ChevronDown } from "lucide-react";
 import type { AnalyzeResult } from "@/lib/analyze";
 import type { TopicSuggestion } from "@/lib/ai/topics";
 import { NumberFlowValue } from "@/components/number-flow-value";
 import { StatusSwap } from "@/components/status-swap";
+import { MarkdownReader } from "@/components/markdown-reader";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +26,56 @@ type CrawlProgress = {
   total: number;
   label: string;
 };
+
+const DEMO_DRAFT_TITLE =
+  "Choisir une plateforme de facturation électronique pour un cabinet";
+
+const DEMO_DRAFT_MARKDOWN = `# Choisir une plateforme de facturation électronique pour un cabinet
+
+## Plan
+- Clarifier les obligations du cabinet
+- Comparer les critères techniques et métier
+- Vérifier l’agrément et la conformité
+- Préparer la bascule opérationnelle
+- Mesurer le ROI et les risques
+
+La facturation électronique n’est plus un sujet périphérique pour les cabinets : elle touche la relation client, la conformité et la productivité au quotidien.
+
+## Clarifier le besoin métier
+Avant de comparer les outils, cartographiez vos flux (honoraires, débours, facturation récurrente) et les intégrations indispensables (comptabilité, CRM, signature).
+
+## Critères de choix
+Privilegiez la clarté du parcours, la qualité du support, et la capacité à exporter vos données sans friction.
+
+## Conformité
+Vérifiez les exigences applicables à votre activité et documentez le contrôle interne associé.
+
+## Bascule
+Planifiez une phase pilote courte, formez l’équipe, puis généralisez avec un suivi des incidents.
+
+Une décision informée réduit le risque et accélère l’adoption.
+`;
+
+const DEMO_RESULT: AnalyzeResult = {
+  siteUrl: "https://example.com",
+  host: "example.com",
+  discoverySource: "homepage-only",
+  pagesAnalyzed: 1,
+  pagesFailed: 0,
+  pageSamples: [],
+  blogPosts: [],
+  totalSignificantTokens: 0,
+  keywords: [],
+  domainGuess: "Démo lecteur markdown",
+  warnings: [],
+};
+
+const DEMO_TOPICS: TopicSuggestion[] = [
+  {
+    title: DEMO_DRAFT_TITLE,
+    reason: "Aperçu UI du brouillon rendu en prose.",
+  },
+];
 
 const SOURCE_LABEL: Record<string, string> = {
   sitemap: "sitemap.xml",
@@ -239,6 +291,10 @@ async function readAnalyzeStream(
 }
 
 export default function Home() {
+  const router = useRouter();
+  const demoDraft =
+    router.isReady && router.query.demoDraft === "1";
+
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState<CrawlProgress | null>(null);
@@ -253,6 +309,13 @@ export default function Home() {
   const [draftError, setDraftError] = useState<UiError | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [keywordsOpen, setKeywordsOpen] = useState(false);
+
+  const viewResult = result ?? (demoDraft ? DEMO_RESULT : null);
+  const viewTopics = topics.length > 0 ? topics : demoDraft ? DEMO_TOPICS : [];
+  const viewSelectedTopic =
+    selectedTopic ?? (demoDraft ? DEMO_DRAFT_TITLE : null);
+  const viewDraftMarkdown =
+    draftMarkdown ?? (demoDraft ? DEMO_DRAFT_MARKDOWN : null);
 
   async function loadTopics(analysis: AnalyzeResult) {
     setTopicsLoading(true);
@@ -444,7 +507,7 @@ export default function Home() {
     }
   }
 
-  const showResults = Boolean(result) && !analyzing;
+  const showResults = Boolean(viewResult) && !analyzing;
   const showWorkspace = analyzing || showResults;
 
   return (
@@ -510,45 +573,45 @@ export default function Home() {
 
         {showWorkspace && (
           <section className="mt-12 space-y-10">
-            {analyzing && !result ? (
+            {analyzing && !viewResult ? (
               <DomainSkeleton />
-            ) : result ? (
+            ) : viewResult ? (
               <div>
                 <SectionLabel>Domaine</SectionLabel>
                 <p className="font-heading mt-2 text-2xl font-semibold leading-snug text-foreground">
-                  {result.domainGuess}
+                  {viewResult.domainGuess}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Badge variant="secondary">
-                    {result.pagesAnalyzed} pages
+                    {viewResult.pagesAnalyzed} pages
                   </Badge>
                   <Badge variant="outline">
-                    {SOURCE_LABEL[result.discoverySource] ??
-                      result.discoverySource}
+                    {SOURCE_LABEL[viewResult.discoverySource] ??
+                      viewResult.discoverySource}
                   </Badge>
-                  {result.pagesFailed > 0 && (
+                  {viewResult.pagesFailed > 0 && (
                     <Badge variant="destructive">
-                      {result.pagesFailed} échec
-                      {result.pagesFailed > 1 ? "s" : ""}
+                      {viewResult.pagesFailed} échec
+                      {viewResult.pagesFailed > 1 ? "s" : ""}
                     </Badge>
                   )}
                 </div>
               </div>
             ) : null}
 
-            {analyzing && !result ? (
+            {analyzing && !viewResult ? (
               <TopicsSkeleton withLabel />
-            ) : result ? (
+            ) : viewResult ? (
               <div>
                 <SectionLabel>Sujets</SectionLabel>
                 {topicsLoading ? (
                   <div className="mt-4">
                     <TopicsSkeleton />
                   </div>
-                ) : topics.length > 0 ? (
+                ) : viewTopics.length > 0 ? (
                   <ul className="mt-4 space-y-3">
-                    {topics.map((topic) => {
-                      const selected = selectedTopic === topic.title;
+                    {viewTopics.map((topic) => {
+                      const selected = viewSelectedTopic === topic.title;
                       return (
                         <li key={topic.title}>
                           <button
@@ -600,12 +663,12 @@ export default function Home() {
                   />
                 )}
 
-                {topics.length > 0 && (
+                {viewTopics.length > 0 && (
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
                     <button
                       type="button"
                       className="button-02 button-02--compact"
-                      disabled={!selectedTopic || draftLoading}
+                      disabled={!viewSelectedTopic || draftLoading}
                       onClick={() => void generateDraft()}
                       aria-label="Générer le brouillon"
                     >
@@ -623,7 +686,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {(draftLoading || draftMarkdown || draftError) && (
+                {(draftLoading || viewDraftMarkdown || draftError) && (
                   <div className="mt-8">
                     <SectionLabel>Brouillon</SectionLabel>
                     {draftLoading ? (
@@ -633,19 +696,17 @@ export default function Home() {
                         message={draftError.message}
                         action={draftError.action}
                       />
-                    ) : draftMarkdown ? (
-                      <pre className="draft-markdown mt-4 overflow-x-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-sm leading-relaxed text-foreground">
-                        {draftMarkdown}
-                      </pre>
+                    ) : viewDraftMarkdown ? (
+                      <MarkdownReader markdown={viewDraftMarkdown} />
                     ) : null}
                   </div>
                 )}
               </div>
             ) : null}
 
-            {analyzing && !result ? (
+            {analyzing && !viewResult ? (
               <KeywordsSkeleton />
-            ) : result ? (
+            ) : viewResult ? (
               <Collapsible
                 open={keywordsOpen}
                 onOpenChange={setKeywordsOpen}
@@ -668,7 +729,7 @@ export default function Home() {
                 </div>
                 <CollapsibleContent>
                   <ol className="mt-4">
-                    {result.keywords
+                    {viewResult.keywords
                       .slice(0, showAllKeywords ? undefined : 10)
                       .map((kw, index) => (
                         <li
@@ -690,7 +751,7 @@ export default function Home() {
                       ))}
                   </ol>
 
-                  {result.keywords.length > 10 && (
+                  {viewResult.keywords.length > 10 && (
                     <button
                       type="button"
                       className="mt-3 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -698,7 +759,7 @@ export default function Home() {
                     >
                       {showAllKeywords
                         ? "Voir moins"
-                        : `Voir plus (${result.keywords.length - 10})`}
+                        : `Voir plus (${viewResult.keywords.length - 10})`}
                       <ChevronDown
                         className={cn(
                           "size-4 transition-transform duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)]",
@@ -711,11 +772,11 @@ export default function Home() {
               </Collapsible>
             ) : null}
 
-            {result && result.blogPosts.length > 0 && (
+            {viewResult && viewResult.blogPosts.length > 0 && (
               <div>
                 <SectionLabel>Blog détecté</SectionLabel>
                 <ul className="mt-4 space-y-2">
-                  {result.blogPosts.slice(0, 6).map((page) => (
+                  {viewResult.blogPosts.slice(0, 6).map((page) => (
                     <li key={page.url} className="text-sm">
                       <a
                         href={page.url}
@@ -731,12 +792,12 @@ export default function Home() {
               </div>
             )}
 
-            {result && result.pageSamples.length > 0 && (
+            {viewResult && viewResult.pageSamples.length > 0 && (
               <div>
                 <SectionLabel>Pages</SectionLabel>
                 <Separator className="my-3" />
                 <ul className="space-y-2">
-                  {result.pageSamples.map((page) => (
+                  {viewResult.pageSamples.map((page) => (
                     <li key={page.url} className="text-sm">
                       <a
                         href={page.url}
@@ -752,9 +813,9 @@ export default function Home() {
               </div>
             )}
 
-            {result && result.warnings.length > 0 && (
+            {viewResult && viewResult.warnings.length > 0 && (
               <ul className="space-y-1 text-sm text-muted-foreground">
-                {result.warnings.map((w) => (
+                {viewResult.warnings.map((w) => (
                   <li key={w}>· {w}</li>
                 ))}
               </ul>
