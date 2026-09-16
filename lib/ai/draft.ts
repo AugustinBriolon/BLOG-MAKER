@@ -1,3 +1,7 @@
+/**
+ * Génération IA du brouillon markdown d'article.
+ * Outline, intro et sections H2 à partir d'un sujet choisi.
+ */
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";

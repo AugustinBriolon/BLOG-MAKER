@@ -1,3 +1,7 @@
+/**
+ * HTTP poli pour le crawler POC : fetch, timeouts, normalisation d'URL.
+ * Constantes partagées et erreurs typées `AnalyzeError`.
+ */
 export const USER_AGENT =
   "BlogMakerSEO-POC/0.1 (+https://github.com/AugustinBriolon/BLOG-MAKER; polite research crawler)";
 

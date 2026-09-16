@@ -1,3 +1,7 @@
+/**
+ * Route API POST : génère un brouillon markdown
+ * pour un sujet sélectionné après l'analyse SEO.
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateArticleDraft, type DraftResult } from "@/lib/ai/draft";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";

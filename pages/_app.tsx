@@ -1,3 +1,4 @@
+/** Wrapper App global : polices Geist et feuille de styles pour toutes les pages. */
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { Geist, Geist_Mono } from "next/font/google";

@@ -1,4 +1,7 @@
-/** Stopwords FR/EN courants — exclu du comptage significatif (POC). */
+/**
+ * Liste de stopwords FR/EN et bruit web courant.
+ * Exclus du comptage de mots-clés significatifs (POC).
+ */
 export const STOPWORDS = new Set(
   [
     // FR

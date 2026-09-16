@@ -1,3 +1,7 @@
+/**
+ * Découverte des pages à crawler : sitemap XML (index inclus)
+ * ou repli sur les liens internes de la homepage.
+ */
 import {
   fetchText,
   sleep,

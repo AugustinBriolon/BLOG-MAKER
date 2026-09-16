@@ -1,3 +1,7 @@
+/**
+ * Extraction du contenu textuel d'une page HTML (cheerio).
+ * Titre, meta description et corps principal sans nav/footer/scripts.
+ */
 import * as cheerio from "cheerio";
 
 const NOISE_SELECTORS = [

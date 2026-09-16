@@ -1,3 +1,6 @@
+/**
+ * Affiche un brouillon markdown : vue prose ou brut, avec copie presse-papiers.
+ */
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

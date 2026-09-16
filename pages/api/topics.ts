@@ -1,3 +1,7 @@
+/**
+ * Route API POST : génère des sujets d'articles IA
+ * à partir du contexte d'analyse (host, mots-clés, blog existant).
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   generateTopicTitles,

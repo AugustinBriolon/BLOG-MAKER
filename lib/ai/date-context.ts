@@ -1,11 +1,6 @@
 /**
- * Cheap “actualité” fix for SEO titles: inject today’s date into prompts
- * instead of paying for a fully up-to-date model. Timely domain news
- * drives valuable blog topics — date grounding is the first lever.
- *
- * Important: date context must NOT become year spam in titles
- * (“… en 2026” on every suggestion). Prefer evergreen / timely wording
- * without appending the year unless truly necessary.
+ * Contexte de date pour les prompts IA (actualité sans spam d'année).
+ * Fournit la date du jour et nettoie les titres qui traînent une année.
  */
 export type PromptDateContext = {
   iso: string;
@@ -59,9 +54,4 @@ export function stripYearClutterFromTitle(title: string): string {
     .trim();
 
   return out;
-}
-
-/** @deprecated use stripYearClutterFromTitle — kept name alias during migration */
-export function refreshOutdatedYearsInTitle(title: string): string {
-  return stripYearClutterFromTitle(title);
 }

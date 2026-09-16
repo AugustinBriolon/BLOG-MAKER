@@ -1,3 +1,7 @@
+/**
+ * Tokenisation FR et scoring unigrammes/bigrammes pour les mots-clés SEO.
+ * Infère aussi une description courte du domaine à partir des termes.
+ */
 import { STOPWORDS } from "./stopwords";
 
 export type KeywordHit = {

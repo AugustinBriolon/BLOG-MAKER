@@ -1,3 +1,7 @@
+/**
+ * Page d'accueil Blog Maker : saisie d'URL, analyse SEO,
+ * sujets IA proposés et génération de brouillon markdown.
+ */
 import Head from "next/head";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";

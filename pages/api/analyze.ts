@@ -1,3 +1,7 @@
+/**
+ * Route API POST : analyse SEO d'une URL.
+ * Réponse JSON ou flux NDJSON (progression crawl + résultat final).
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   analyzeSite,

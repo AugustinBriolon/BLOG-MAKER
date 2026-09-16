@@ -1,3 +1,7 @@
+/**
+ * Ligne de statut avec transition type iMessage : dwell puis swap animé.
+ * Coalesce les mises à jour rapides (progression d'analyse).
+ */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 

@@ -1,4 +1,8 @@
-import { fetchText, sleep, FETCH_GAP_MS, AnalyzeError } from "./http";
+/**
+ * Parse robots.txt (User-agent: *) : règles allow/disallow et hints sitemap.
+ * En cas d'échec, politique permissive par défaut.
+ */
+import { fetchText, sleep, FETCH_GAP_MS } from "./http";
 
 export type RobotsPolicy = {
   fetched: boolean;
@@ -87,18 +91,5 @@ export async function loadRobotsPolicy(origin: string): Promise<RobotsPolicy> {
     };
   } catch {
     return ALLOW_ALL;
-  }
-}
-
-export function assertAllowed(
-  policy: RobotsPolicy,
-  url: URL,
-): void {
-  if (!policy.allowsPath(url.pathname)) {
-    throw new AnalyzeError(
-      `robots.txt interdit l'accès à ${url.pathname}`,
-      403,
-      "ROBOTS_DISALLOW",
-    );
   }
 }

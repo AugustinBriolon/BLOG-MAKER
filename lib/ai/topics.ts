@@ -1,3 +1,7 @@
+/**
+ * Génération IA des sujets de blog SEO via AI Gateway.
+ * Structured output (titre + raison) à partir du contexte d'analyse.
+ */
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { BlogPostRef, KeywordHit } from "@/lib/analyze";

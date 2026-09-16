@@ -1,3 +1,7 @@
+/**
+ * Orchestration de l'analyse site : robots → sitemap → crawl → mots-clés.
+ * Point d'entrée `analyzeSite` et mapping des erreurs pour l'UI.
+ */
 import { detectBlogPosts, type BlogPostRef } from "./blog-posts";
 import { extractPageContent, type ExtractedPage } from "./extract";
 import {

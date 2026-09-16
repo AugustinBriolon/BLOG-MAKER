@@ -1,3 +1,7 @@
+/**
+ * Compteur animé React autour du web component `number-flow`.
+ * Utilisé pour la progression du crawl (ex. 3/12 pages).
+ */
 import {
   useEffect,
   useLayoutEffect,

@@ -1,3 +1,7 @@
+/**
+ * Heuristique pour repérer les articles de blog existants
+ * parmi les pages crawlées (URL, titre, segments datés).
+ */
 export type BlogPostRef = {
   title: string;
   url: string;
