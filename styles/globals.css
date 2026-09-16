@@ -144,11 +144,10 @@ body {
 /* ——— Pill hover-reveal arrow (button-02) ——— */
 button.button-02 {
   --btn-h: 3.15rem;
+  --btn-w: 12rem;
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  width: 100%;
-  min-width: 11.5rem;
+  display: inline-block;
+  width: var(--btn-w);
   height: var(--btn-h);
   padding: 0;
   border: 0;
@@ -157,13 +156,13 @@ button.button-02 {
   font: inherit;
   outline: none;
   vertical-align: middle;
+  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
-@media (min-width: 640px) {
+@media (max-width: 639px) {
   button.button-02 {
-    width: auto;
-    flex-shrink: 0;
+    width: 100%;
   }
 }
 
@@ -212,17 +211,18 @@ button.button-02 .circle > span::before {
 }
 
 button.button-02 .inner {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  display: block;
-  width: 100%;
-  padding: 0.85rem 1.35rem 0.85rem 3.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.1rem 0 2.75rem;
   color: var(--bg-deep);
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  line-height: 1.2;
-  text-align: center;
+  line-height: 1;
   transition: color var(--duration) var(--ease-out-quart);
 }
 
