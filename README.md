@@ -1,41 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# Blog Maker — POC technique
 
-## Getting Started
+SaaS de génération d’articles de blog pour renforcer le trafic et le SEO d’un site. Ce dépôt contient le **POC** : à partir d’une URL, analyser le site (crawl poli + mots-clés), proposer des sujets (IA), puis un brouillon d’article (IA).
 
-First, run the development server:
+## Pitch produit (court)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Coller l’URL d’un site → comprendre son domaine métier via le contenu public → obtenir des titres de blog pertinents → générer un brouillon éditable. L’analyse mots-clés est ouverte ; les appels IA (sujets / brouillon) sont isolés pour une monétisation ultérieure (crédits).
+
+## Architecture
+
+Next.js **Pages Router** (App Router non utilisé pour ce POC).
+
+| Couche | Rôle |
+| --- | --- |
+| `pages/index.tsx` | UI progressive (progress crawl, skeletons par section, lecteur MD) |
+| `pages/api/analyze.ts` | Crawl + extraction + mots-clés (+ stream NDJSON optionnel) |
+| `pages/api/topics.ts` | 1–3 titres via AI Gateway |
+| `pages/api/draft.ts` | Brouillon markdown via AI Gateway |
+| `lib/analyze/*` | Pipeline SEO sans LLM |
+| `lib/ai/*` | Prompts / appels sujets & brouillon |
+| `components/*` | UI (status, Number Flow, markdown, shadcn) |
+
+## Pipeline
+
+```
+URL
+ → robots.txt
+ → sitemap (ou fallback liens homepage)
+ → sélection priorisée des pages (plafond 12)
+ → fetch poli (gap ~200 ms) + extraction texte (cheerio)
+ → tokens / bigrammes (stopwords FR+EN)
+ → domain guess
+ → [optionnel] topics IA
+ → [optionnel] draft IA
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Ciblage des pages
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+À partir de l’URL de départ (locale `/fr/` ou host `.fr`), le crawler **préfère** landing / produit / blog / solutions / tarifs, et **rétrograde** légal, privacy, login, auteurs, carrières, cookies, etc. Les plafonds `MAX_PAGES` / `MAX_SITEMAP_URLS` et le délai entre requêtes restent inchangés.
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+### IA
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+- Défaut : `openai/gpt-4.1-nano` via **Vercel AI Gateway**
+- Sans `AI_GATEWAY_API_KEY` : `/api/analyze` OK ; topics/draft → `unavailable` (échec gracieux pour l’UI)
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variables d’environnement
 
-## Learn More
+Copier `.env.example` vers `.env.local` :
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Requis | Description |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | pour topics/draft | Clé Vercel AI Gateway |
+| `AI_TOPICS_MODEL` | non | Override modèle sujets (défaut nano) |
+| `AI_DRAFT_MODEL` | non | Override modèle brouillon (défaut nano) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+## Lancer en local
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+Ouvrir [http://localhost:3000](http://localhost:3000).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Autres scripts : `npm run build`, `npm start`, `npm run lint`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
-# BLOG-MAKER
+### API (smoke)
+
+```bash
+curl -s -X POST http://localhost:3000/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://www.zlawyer.fr/logiciel-avocats/"}'
+```
+
+## Dossiers clés
+
+| Chemin | Contenu |
+| --- | --- |
+| `lib/analyze/` | robots, sitemap, http poli, extract, keywords, priorisation URL, blog-posts |
+| `lib/ai/` | topics, draft, contexte date (anti spam année) |
+| `components/` | lecteur markdown, status swap, Number Flow, UI shadcn |
+| `pages/api/` | `analyze`, `topics`, `draft` |
+| `styles/globals.css` | tokens + styles POC (dont `.button-02`) |
+
+## Limites / scope POC
+
+- Pas d’auth, billing, ni publication CMS
+- Crawl borné (≈12 pages), polite, pas un crawler exhaustif
+- Domain guess heuristique (pas de taxonomie métier)
+- Qualité topics/draft dépend du modèle + clé Gateway
+- Sites JS-heavy / mur login : peu de texte → keywords faibles (attendu)
+
+## Licence / repo
+
+Dépôt privé / projet : [AugustinBriolon/BLOG-MAKER](https://github.com/AugustinBriolon/BLOG-MAKER).

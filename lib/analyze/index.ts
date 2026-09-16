@@ -14,6 +14,7 @@ import {
   sleep,
 } from "./http";
 import { analyzeKeywords, inferDomain, type KeywordHit } from "./keywords";
+import { prioritizePages } from "./page-priority";
 import { loadRobotsPolicy } from "./robots";
 import { discoverPages } from "./sitemap";
 
@@ -131,6 +132,14 @@ export async function analyzeSite(
     .filter((u): u is URL => Boolean(u))
     .filter((u) => robots.allowsPath(u.pathname));
 
+  // Always consider the URL saisie (landing / locale) si robots l'autorise
+  if (robots.allowsPath(siteUrl.pathname)) {
+    const startKey = siteUrl.toString();
+    if (!eligible.some((u) => u.toString() === startKey)) {
+      eligible.unshift(siteUrl);
+    }
+  }
+
   if (eligible.length === 0) {
     throw new AnalyzeError(
       "Aucune page autorisée à analyser (robots.txt ou découverte vide).",
@@ -139,14 +148,8 @@ export async function analyzeSite(
     );
   }
 
-  const sorted = [...eligible].sort((a, b) => {
-    const aHome = a.pathname === "/" ? 0 : 1;
-    const bHome = b.pathname === "/" ? 0 : 1;
-    if (aHome !== bHome) return aHome - bHome;
-    return a.pathname.split("/").length - b.pathname.split("/").length;
-  });
-
-  const targets = sorted.slice(0, MAX_PAGES);
+  // Prefer product / landing / blog (locale-aware); demote legal / author / login…
+  const targets = prioritizePages(eligible, siteUrl, MAX_PAGES);
   const total = targets.length;
   const pages: ExtractedPage[] = [];
   let pagesFailed = 0;
