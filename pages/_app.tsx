@@ -1,30 +1,22 @@
-/** Wrapper App global : polices Geist et feuille de styles pour toutes les pages. */
+/**
+ * App Pages Router : Sanity UI ThemeProvider + stylesheet (docs @sanity/ui).
+ * @see https://www.sanity.io/ui/docs
+ * @see https://www.sanity.io/docs/app-sdk/sanity-ui-sdk
+ */
+import "@sanity/ui/styles.css";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Card, ThemeProvider } from "@sanity/ui";
+import { buildTheme } from "@sanity/ui/theme";
 
-const geistSans = Geist({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
-
-const geistHeading = Geist({
-  subsets: ["latin"],
-  variable: "--font-heading",
-  weight: ["500", "600", "700"],
-});
+const theme = buildTheme();
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} ${geistHeading.variable} min-h-screen font-sans`}
-    >
-      <Component {...pageProps} />
-    </div>
+    <ThemeProvider scheme="light" theme={theme}>
+      <Card height="fill" tone="transparent" style={{ minHeight: "100vh" }}>
+        <Component {...pageProps} />
+      </Card>
+    </ThemeProvider>
   );
 }
