@@ -1,33 +1,11 @@
 /**
- * Page d'accueil Blog Maker : outil compagnon Sanity Studio
- * (primitives @sanity/ui — https://www.sanity.io/ui/docs).
+ * Page d’accueil Blog Maker : URL → analyse → sujets → brouillon → publish Sanity.
+ * UI marketing (sanity.io homepage), pas chrome Studio / @sanity/ui.
  */
 import Head from "next/head";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  Container,
-  Flex,
-  Heading,
-  HeadingSkeleton,
-  Inline,
-  Label,
-  Skeleton,
-  Spinner,
-  Stack,
-  Text,
-  TextInput,
-  TextSkeleton,
-} from "@sanity/ui";
-import { ArrowRightIcon } from "@sanity/icons/ArrowRight";
-import { ChevronDownIcon } from "@sanity/icons/ChevronDown";
-import { ComposeIcon } from "@sanity/icons/Compose";
-import { PublishIcon } from "@sanity/icons/Publish";
-import { SearchIcon } from "@sanity/icons/Search";
+import { ChevronDown } from "lucide-react";
 import type { AnalyzeResult } from "@/lib/analyze";
 import type { TopicSuggestion } from "@/lib/ai/topics";
 import { NumberFlowValue } from "@/components/number-flow-value";
@@ -38,6 +16,16 @@ import { MarkdownReader } from "@/components/markdown-reader";
 //   EditorialVolumePlan,
 //   EditorialVolumePlanSkeleton,
 // } from "@/components/editorial-volume-plan";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 type UiError = { message: string; action?: string };
 
@@ -115,11 +103,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <Label size={1} muted>
-      {children}
-    </Label>
-  );
+  return <p className="font-mono-label text-muted-foreground">{children}</p>;
 }
 
 function StatusBlock({
@@ -129,94 +113,84 @@ function StatusBlock({
 }: {
   message: string;
   action?: string;
-  tone?: "default" | "critical";
+  tone?: "default" | "danger";
 }) {
   return (
-    <Stack gap={2} marginTop={3} role={tone === "critical" ? "alert" : undefined}>
-      <Text size={1} muted={tone !== "critical"}>
-        {message}
-      </Text>
-      {action ? (
-        <Text size={1}>→ {action}</Text>
-      ) : null}
-    </Stack>
+    <div
+      className={cn(
+        "mt-4 space-y-1 text-sm",
+        tone === "danger" ? "text-destructive" : "text-muted-foreground",
+      )}
+      role={tone === "danger" ? "alert" : undefined}
+    >
+      <p>{message}</p>
+      {action ? <p className="text-foreground">→ {action}</p> : null}
+    </div>
   );
 }
 
 function DomainSkeleton() {
   return (
-    <Card border padding={4} radius={2} aria-busy="true">
-      <Stack gap={3}>
-        <Skeleton animated style={{ width: 64, height: 12 }} radius={1} />
-        <HeadingSkeleton animated style={{ width: "70%" }} />
-        <Inline gap={2}>
-          <Skeleton animated style={{ width: 64, height: 20 }} radius={2} />
-          <Skeleton animated style={{ width: 112, height: 20 }} radius={2} />
-        </Inline>
-      </Stack>
-    </Card>
+    <div className="space-y-3" aria-busy="true">
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-8 w-[70%]" />
+      <div className="flex gap-2">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-5 w-28" />
+      </div>
+    </div>
   );
 }
 
 function TopicsSkeleton({ withLabel = false }: { withLabel?: boolean }) {
   return (
-    <Card border padding={4} radius={2} aria-busy="true">
-      <Stack gap={3}>
-        {withLabel ? (
-          <Skeleton animated style={{ width: 56, height: 12 }} radius={1} />
-        ) : null}
-        {[0, 1, 2].map((i) => (
-          <Card
-            key={i}
-            padding={3}
-            radius={2}
-            tone="transparent"
-            style={{ opacity: 1 - i * 0.12 }}
-          >
-            <Stack gap={2}>
-              <Skeleton animated style={{ width: 56, height: 18 }} radius={2} />
-              <TextSkeleton animated style={{ width: `${92 - i * 14}%` }} />
-              <TextSkeleton animated style={{ width: `${72 - i * 10}%` }} size={1} />
-            </Stack>
-          </Card>
-        ))}
-      </Stack>
-    </Card>
+    <div className="space-y-3" aria-busy="true">
+      {withLabel ? <Skeleton className="h-3 w-14" /> : null}
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="space-y-2 rounded-md py-2"
+          style={{ opacity: 1 - i * 0.12 }}
+        >
+          <Skeleton className="h-4 w-14" />
+          <Skeleton className={cn("h-5", i === 0 ? "w-[92%]" : i === 1 ? "w-[78%]" : "w-[64%]")} />
+          <Skeleton className={cn("h-4", i === 0 ? "w-[72%]" : "w-[58%]")} />
+        </div>
+      ))}
+    </div>
   );
 }
 
 function KeywordsSkeleton() {
   return (
-    <Flex align="center" justify="space-between" aria-busy="true">
-      <Skeleton animated style={{ width: 80, height: 12 }} radius={1} />
-      <Skeleton animated style={{ width: 64, height: 12 }} radius={1} />
-    </Flex>
+    <div className="flex items-center justify-between" aria-busy="true">
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="h-3 w-16" />
+    </div>
   );
 }
 
 function PagesSkeleton() {
   return (
-    <Flex align="center" justify="space-between" aria-busy="true">
-      <Skeleton animated style={{ width: 56, height: 12 }} radius={1} />
-      <Skeleton animated style={{ width: 64, height: 12 }} radius={1} />
-    </Flex>
+    <div className="flex items-center justify-between" aria-busy="true">
+      <Skeleton className="h-3 w-14" />
+      <Skeleton className="h-3 w-16" />
+    </div>
   );
 }
 
 function DraftSkeleton() {
   return (
-    <Card border padding={4} radius={2} marginTop={3} aria-busy="true">
-      <Stack gap={3}>
-        <TextSkeleton animated style={{ width: "60%" }} />
-        <TextSkeleton animated style={{ width: "40%" }} size={1} />
-        <TextSkeleton animated />
-        <TextSkeleton animated style={{ width: "92%" }} size={1} />
-        <TextSkeleton animated style={{ width: "78%" }} size={1} />
-        <TextSkeleton animated style={{ width: "33%" }} />
-        <TextSkeleton animated size={1} />
-        <TextSkeleton animated style={{ width: "88%" }} size={1} />
-      </Stack>
-    </Card>
+    <div className="mt-4 space-y-3" aria-busy="true">
+      <Skeleton className="h-5 w-[60%]" />
+      <Skeleton className="h-4 w-[40%]" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-[92%]" />
+      <Skeleton className="h-4 w-[78%]" />
+      <Skeleton className="h-5 w-[33%]" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-[88%]" />
+    </div>
   );
 }
 
@@ -227,25 +201,24 @@ function AnalyzeStatus({ progress }: { progress: CrawlProgress }) {
     : `phase:${progress.phase}:${progress.label}`;
 
   return (
-    <Flex align="center" gap={2} marginTop={3}>
-      <Spinner muted />
-      <Box flex={1}>
-        <StatusSwap lineKey={lineKey} className="status-swap">
-          {isCrawl ? (
-            <Text size={1} muted as="span">
-              <NumberFlowValue value={progress.done} />
-              <span>/</span>
-              <span>{progress.total}</span>
-              <span> pages…</span>
-            </Text>
-          ) : (
-            <Text size={1} muted>
-              {progress.label}
-            </Text>
-          )}
-        </StatusSwap>
-      </Box>
-    </Flex>
+    <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+      <span
+        className="inline-block size-3.5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground"
+        aria-hidden
+      />
+      <StatusSwap lineKey={lineKey} className="status-swap flex-1">
+        {isCrawl ? (
+          <span>
+            <NumberFlowValue value={progress.done} />
+            <span>/</span>
+            <span>{progress.total}</span>
+            <span> pages…</span>
+          </span>
+        ) : (
+          <span>{progress.label}</span>
+        )}
+      </StatusSwap>
+    </div>
   );
 }
 
@@ -604,412 +577,390 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Blog Maker · Sanity</title>
+        <title>Blog Maker</title>
         <meta
           name="description"
-          content="Blog Maker — outil compagnon Sanity Studio : URL → sujets → brouillon → publish."
+          content="Blog Maker — analyse SEO, sujets IA et brouillon prêts pour Sanity."
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <Card borderBottom paddingX={[3, 4]} paddingY={3} tone="default" shadow={1}>
-        <Container width={2}>
-          <Flex align="center" justify="space-between" gap={3}>
-            <Inline gap={2}>
-              <Text size={2} weight="semibold">
-                Blog Maker
-              </Text>
-              <Badge fontSize={0} tone="primary">
-                for Sanity
-              </Badge>
-            </Inline>
-            <Text size={1} muted>
-              Analyse → sujets → brouillon → publish
-            </Text>
-          </Flex>
-        </Container>
-      </Card>
+      <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-24 pt-14 sm:px-8 sm:pb-16 sm:pt-20">
+        <header className="animate-rise">
+          <p className="font-mono-label text-muted-foreground">for Sanity</p>
+          <h1 className="font-heading mt-2 text-5xl font-semibold tracking-tight text-foreground sm:text-6xl">
+            Blog Maker
+          </h1>
+          <p className="mt-3 max-w-md text-base text-muted-foreground sm:text-lg">
+            Crawl SEO, sujets IA et brouillon — prêts à publier sur Sanity.
+          </p>
+        </header>
 
-      <Container width={2} paddingX={[3, 4]} paddingY={[4, 5]}>
-        <Stack gap={5}>
-          <Stack gap={2}>
-            <Heading as="h1" size={2}>
-              Analyser un site
-            </Heading>
-            <Text muted size={1}>
-              Crawl SEO, sujets IA et brouillon prêts pour Sanity Studio.
-            </Text>
-          </Stack>
+        <form
+          onSubmit={onSubmit}
+          className="analyze-form animate-rise-delay mt-10 flex w-full flex-col gap-3 sm:flex-row sm:items-center"
+        >
+          <label className="sr-only" htmlFor="site-url">
+            URL du site
+          </label>
+          <Input
+            id="site-url"
+            type="url"
+            inputMode="url"
+            required
+            placeholder="https://exemple.com"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={analyzing}
+            className="h-12 flex-1 rounded-full border-border bg-card/90 px-5 text-base shadow-none"
+          />
+          <button
+            type="submit"
+            className="button-02"
+            disabled={analyzing || !url.trim()}
+            aria-label="Analyser"
+          >
+            <div className="inner">Analyser</div>
+            <div className="circle" aria-hidden="true">
+              <span>→</span>
+            </div>
+          </button>
+        </form>
 
-          <Box as="form" onSubmit={onSubmit}>
-            <Flex
-              direction={["column", "row"]}
-              gap={2}
-              align={["stretch", "center"]}
-            >
-              <Box flex={1}>
-                <TextInput
-                  id="site-url"
-                  type="url"
-                  inputMode="url"
-                  icon={SearchIcon}
-                  placeholder="https://exemple.com"
-                  value={url}
-                  onChange={(e) => setUrl(e.currentTarget.value)}
-                  disabled={analyzing}
-                  fontSize={2}
-                  padding={3}
-                  radius={2}
-                  // Pas de `required` HTML : :invalid vide colore l’input en rouge Sanity.
-                />
-              </Box>
-              <Button
-                type="submit"
-                text="Analyser"
-                iconRight={ArrowRightIcon}
-                tone="primary"
-                mode="default"
-                fontSize={2}
-                padding={3}
-                radius={2}
-                disabled={analyzing || !url.trim()}
-                loading={analyzing}
-              />
-            </Flex>
-          </Box>
+        {analyzing && progress ? <AnalyzeStatus progress={progress} /> : null}
 
-          {analyzing && progress ? <AnalyzeStatus progress={progress} /> : null}
+        {error && !analyzing ? (
+          <StatusBlock
+            message={error.message}
+            action={error.action}
+            tone="danger"
+          />
+        ) : null}
 
-          {error && !analyzing ? (
-            <Card padding={3} radius={2} tone="critical" border>
-              <StatusBlock
-                message={error.message}
-                action={error.action}
-                tone="critical"
-              />
-            </Card>
-          ) : null}
+        {showWorkspace ? (
+          <section className="mt-12 space-y-10">
+            {analyzing && !viewResult ? (
+              <DomainSkeleton />
+            ) : viewResult ? (
+              <div>
+                <SectionLabel>Domaine</SectionLabel>
+                <p className="font-heading mt-2 text-2xl font-semibold leading-snug text-foreground sm:text-3xl">
+                  {viewResult.domainGuess}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge variant="secondary">
+                    {viewResult.pagesAnalyzed} pages
+                  </Badge>
+                  <Badge variant="outline">
+                    {SOURCE_LABEL[viewResult.discoverySource] ??
+                      viewResult.discoverySource}
+                  </Badge>
+                  {viewResult.pagesFailed > 0 ? (
+                    <Badge variant="destructive">
+                      {viewResult.pagesFailed} échec
+                      {viewResult.pagesFailed > 1 ? "s" : ""}
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
-          {showWorkspace ? (
-            <Stack gap={4}>
-              {analyzing && !viewResult ? (
-                <DomainSkeleton />
-              ) : viewResult ? (
-                <Card border padding={4} radius={2}>
-                  <Stack gap={3}>
-                    <SectionLabel>Domaine</SectionLabel>
-                    <Heading as="h2" size={1}>
-                      {viewResult.domainGuess}
-                    </Heading>
-                    <Inline gap={2}>
-                      <Badge tone="primary">
-                        {viewResult.pagesAnalyzed} pages
-                      </Badge>
-                      <Badge>
-                        {SOURCE_LABEL[viewResult.discoverySource] ??
-                          viewResult.discoverySource}
-                      </Badge>
-                      {viewResult.pagesFailed > 0 ? (
-                        <Badge tone="critical">
-                          {viewResult.pagesFailed} échec
-                          {viewResult.pagesFailed > 1 ? "s" : ""}
-                        </Badge>
-                      ) : null}
-                    </Inline>
-                  </Stack>
-                </Card>
-              ) : null}
+            {/* Plan éditorial (volume) — mis de côté pour V1 Sanity */}
+            {/* {analyzing && !viewResult ? (
+              <EditorialVolumePlanSkeleton />
+            ) : viewResult ? (
+              <EditorialVolumePlan />
+            ) : null} */}
 
-              {/* Plan éditorial (volume) — mis de côté pour V1 Sanity */}
-              {/* {analyzing && !viewResult ? (
-                <EditorialVolumePlanSkeleton />
-              ) : viewResult ? (
-                <EditorialVolumePlan />
-              ) : null} */}
-
-              {analyzing && !viewResult ? (
-                <TopicsSkeleton withLabel />
-              ) : viewResult ? (
-                <Card border padding={4} radius={2}>
-                  <Stack gap={4}>
-                    <SectionLabel>Sujets</SectionLabel>
-
-                    {topicsLoading ? (
-                      <TopicsSkeleton />
-                    ) : viewTopics.length > 0 ? (
-                      <Stack gap={2} as="ul" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                        {viewTopics.map((topic) => {
-                          const selected = viewSelectedTopic === topic.title;
-                          return (
-                            <Box as="li" key={topic.title}>
-                              <Card
-                                as="button"
-                                type="button"
-                                padding={3}
-                                radius={2}
-                                border
-                                tone={selected ? "primary" : "default"}
-                                selected={selected}
-                                onClick={() => {
-                                  setSelectedTopic(topic.title);
-                                  setDraftMarkdown(null);
-                                  setDraftError(null);
-                                  setPublishError(null);
-                                  setPublishId(null);
-                                }}
-                                style={{
-                                  width: "100%",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                }}
+            {analyzing && !viewResult ? (
+              <TopicsSkeleton withLabel />
+            ) : viewResult ? (
+              <div>
+                <SectionLabel>Sujets</SectionLabel>
+                {topicsLoading ? (
+                  <div className="mt-4">
+                    <TopicsSkeleton />
+                  </div>
+                ) : viewTopics.length > 0 ? (
+                  <ul className="mt-3 space-y-1">
+                    {viewTopics.map((topic) => {
+                      const selected = viewSelectedTopic === topic.title;
+                      return (
+                        <li key={topic.title}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTopic(topic.title);
+                              setDraftMarkdown(null);
+                              setDraftError(null);
+                              setPublishError(null);
+                              setPublishId(null);
+                            }}
+                            className={cn(
+                              "w-full rounded-lg px-3.5 py-3 text-left transition-colors",
+                              selected
+                                ? "bg-foreground text-background"
+                                : "hover:bg-muted",
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={cn(
+                                  "font-mono-label",
+                                  selected
+                                    ? "text-background/70"
+                                    : "text-muted-foreground",
+                                )}
                               >
-                                <Stack gap={2}>
-                                  <Inline gap={2}>
-                                    <Badge fontSize={0} tone="primary">
-                                      proposé
-                                    </Badge>
-                                    {selected ? (
-                                      <Text size={1} muted>
-                                        sélectionné
-                                      </Text>
-                                    ) : null}
-                                  </Inline>
-                                  <Text size={2} weight="semibold">
-                                    {topic.title}
-                                  </Text>
-                                  {topic.reason ? (
-                                    <Text size={1} muted>
-                                      {topic.reason}
-                                    </Text>
-                                  ) : null}
-                                </Stack>
-                              </Card>
-                            </Box>
-                          );
-                        })}
-                      </Stack>
-                    ) : (
-                      <StatusBlock
-                        message={
-                          topicsError?.message || "Aucun sujet généré."
-                        }
-                        action={topicsError?.action}
-                      />
-                    )}
-
-                    {viewTopics.length > 0 ? (
-                      <Flex
-                        direction={["column", "row"]}
-                        gap={3}
-                        align={["stretch", "center"]}
-                      >
-                        <Button
-                          text={draftLoading ? "Génération…" : "Générer"}
-                          icon={ComposeIcon}
-                          tone="primary"
-                          mode="default"
-                          disabled={!viewSelectedTopic || draftLoading}
-                          loading={draftLoading}
-                          onClick={() => void generateDraft()}
-                          fontSize={1}
-                          padding={3}
-                          radius={2}
-                        />
-                        <Text size={1} muted>
-                          Brouillon markdown — ensuite publish Sanity.
-                        </Text>
-                      </Flex>
-                    ) : null}
-
-                    {draftLoading || viewDraftMarkdown || draftError ? (
-                      <Stack gap={3}>
-                        <SectionLabel>Brouillon</SectionLabel>
-                        {draftLoading ? (
-                          <DraftSkeleton />
-                        ) : draftError ? (
-                          <StatusBlock
-                            message={draftError.message}
-                            action={draftError.action}
-                          />
-                        ) : viewDraftMarkdown ? (
-                          <>
-                            <MarkdownReader markdown={viewDraftMarkdown} />
-                            <Flex
-                              direction={["column", "row"]}
-                              gap={3}
-                              align={["stretch", "center"]}
-                            >
-                              <Button
-                                text={
-                                  publishing
-                                    ? "Publication…"
-                                    : publishId
-                                      ? "Republier sur Sanity"
-                                      : "Publier sur Sanity"
-                                }
-                                icon={PublishIcon}
-                                tone="positive"
-                                disabled={publishing}
-                                loading={publishing}
-                                onClick={() => void publishToSanity()}
-                                fontSize={1}
-                                padding={3}
-                                radius={2}
-                              />
-                              {publishId ? (
-                                <Text size={1} muted>
-                                  Document <code>{publishId}</code>
-                                </Text>
+                                proposé
+                              </span>
+                              {selected ? (
+                                <span className="text-xs text-background/70">
+                                  sélectionné
+                                </span>
                               ) : null}
-                            </Flex>
-                            {publishError ? (
-                              <Card padding={3} radius={2} tone="caution" border>
-                                <StatusBlock
-                                  message={publishError.message}
-                                  action={publishError.action}
-                                />
-                              </Card>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </Stack>
-                    ) : null}
-                  </Stack>
-                </Card>
-              ) : null}
-
-              {analyzing && !viewResult ? (
-                <KeywordsSkeleton />
-              ) : viewResult ? (
-                <Card border padding={3} radius={2}>
-                  <Stack gap={3}>
-                    <Flex align="center" justify="space-between" gap={3}>
-                      <SectionLabel>Mots-clés</SectionLabel>
-                      <Button
-                        mode="bleed"
-                        fontSize={1}
-                        padding={2}
-                        text={keywordsOpen ? "Masquer" : "Afficher"}
-                        iconRight={ChevronDownIcon}
-                        onClick={() => setKeywordsOpen((v) => !v)}
-                      />
-                    </Flex>
-                    {keywordsOpen ? (
-                      <Stack gap={2} as="ol" style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                        {viewResult.keywords
-                          .slice(0, showAllKeywords ? undefined : 10)
-                          .map((kw, index) => (
-                            <Flex
-                              as="li"
-                              key={`${kw.kind}-${kw.term}`}
-                              justify="space-between"
-                              gap={3}
+                            </div>
+                            <p
+                              className={cn(
+                                "font-heading mt-1.5 text-base font-semibold leading-snug sm:text-lg",
+                                selected ? "text-background" : "text-foreground",
+                              )}
                             >
-                              <Inline gap={3}>
-                                <Text size={1} muted style={{ width: 20 }}>
-                                  {index + 1}
-                                </Text>
-                                <Text size={1} weight="medium">
-                                  {kw.term}
-                                </Text>
-                              </Inline>
-                              <Text size={1} muted>
-                                {kw.count}
-                              </Text>
-                            </Flex>
-                          ))}
-                        {viewResult.keywords.length > 10 ? (
-                          <Button
-                            mode="bleed"
-                            fontSize={1}
-                            padding={2}
-                            text={
-                              showAllKeywords
-                                ? "Voir moins"
-                                : `Voir plus (${viewResult.keywords.length - 10})`
-                            }
-                            iconRight={ChevronDownIcon}
-                            onClick={() => setShowAllKeywords((v) => !v)}
-                            style={{ alignSelf: "flex-start" }}
+                              {topic.title}
+                            </p>
+                            {topic.reason ? (
+                              <p
+                                className={cn(
+                                  "mt-1 text-sm",
+                                  selected
+                                    ? "text-background/70"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {topic.reason}
+                              </p>
+                            ) : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <StatusBlock
+                    message={
+                      topicsError?.message || "Aucun sujet généré."
+                    }
+                    action={topicsError?.action}
+                  />
+                )}
+
+                {viewTopics.length > 0 ? (
+                  <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                    <button
+                      type="button"
+                      className="button-02 button-02--compact"
+                      disabled={!viewSelectedTopic || draftLoading}
+                      onClick={() => void generateDraft()}
+                      aria-label="Générer le brouillon"
+                    >
+                      <div className="inner">
+                        {draftLoading ? "Génération…" : "Générer"}
+                      </div>
+                      <div className="circle" aria-hidden="true">
+                        <span>→</span>
+                      </div>
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      Brouillon markdown — ensuite publish Sanity.
+                    </p>
+                  </div>
+                ) : null}
+
+                {draftLoading || viewDraftMarkdown || draftError ? (
+                  <div className="mt-8">
+                    <SectionLabel>Brouillon</SectionLabel>
+                    {draftLoading ? (
+                      <DraftSkeleton />
+                    ) : draftError ? (
+                      <StatusBlock
+                        message={draftError.message}
+                        action={draftError.action}
+                      />
+                    ) : viewDraftMarkdown ? (
+                      <>
+                        <MarkdownReader markdown={viewDraftMarkdown} />
+                        <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                          <button
+                            type="button"
+                            className="button-02 button-02--compact"
+                            disabled={publishing}
+                            onClick={() => void publishToSanity()}
+                            aria-label="Publier sur Sanity"
+                          >
+                            <div className="inner">
+                              {publishing
+                                ? "Publication…"
+                                : publishId
+                                  ? "Republier"
+                                  : "Publier"}
+                            </div>
+                            <div className="circle" aria-hidden="true">
+                              <span>→</span>
+                            </div>
+                          </button>
+                          {publishId ? (
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {publishId}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              Stub publish → Sanity Content Lake.
+                            </p>
+                          )}
+                        </div>
+                        {publishError ? (
+                          <StatusBlock
+                            message={publishError.message}
+                            action={publishError.action}
+                            tone="danger"
                           />
                         ) : null}
-                      </Stack>
+                      </>
                     ) : null}
-                  </Stack>
-                </Card>
-              ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
-              {viewResult && viewResult.blogPosts.length > 0 ? (
-                <Card border padding={3} radius={2}>
-                  <Stack gap={3}>
-                    <SectionLabel>Blog détecté</SectionLabel>
-                    <Stack gap={2} as="ul" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                      {viewResult.blogPosts.slice(0, 6).map((page) => (
-                        <Box as="li" key={page.url}>
-                          <Text size={1}>
-                            <a href={page.url} target="_blank" rel="noopener noreferrer">
-                              {page.title}
-                            </a>
-                          </Text>
-                        </Box>
+            {analyzing && !viewResult ? (
+              <KeywordsSkeleton />
+            ) : viewResult ? (
+              <Collapsible open={keywordsOpen} onOpenChange={setKeywordsOpen}>
+                <div className="flex items-center justify-between gap-3">
+                  <SectionLabel>Mots-clés</SectionLabel>
+                  <CollapsibleTrigger
+                    className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {keywordsOpen ? "Masquer" : "Afficher"}
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)]",
+                        keywordsOpen && "rotate-180",
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <ol className="mt-4">
+                    {viewResult.keywords
+                      .slice(0, showAllKeywords ? undefined : 10)
+                      .map((kw, index) => (
+                        <li
+                          key={`${kw.kind}-${kw.term}`}
+                          className="keyword-row text-sm"
+                        >
+                          <span className="flex min-w-0 items-baseline gap-3">
+                            <span className="w-5 shrink-0 font-mono text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <span className="truncate font-medium">
+                              {kw.term}
+                            </span>
+                          </span>
+                          <span className="shrink-0 tabular-nums text-[var(--ember)]">
+                            {kw.count}
+                          </span>
+                        </li>
                       ))}
-                    </Stack>
-                  </Stack>
-                </Card>
-              ) : null}
+                  </ol>
 
-              {analyzing && !viewResult ? (
-                <PagesSkeleton />
-              ) : viewResult && viewResult.pageSamples.length > 0 ? (
-                <Card border padding={3} radius={2}>
-                  <Stack gap={3}>
-                    <Flex align="center" justify="space-between" gap={3}>
-                      <SectionLabel>Pages</SectionLabel>
-                      <Button
-                        mode="bleed"
-                        fontSize={1}
-                        padding={2}
-                        text={pagesOpen ? "Masquer" : "Afficher"}
-                        iconRight={ChevronDownIcon}
-                        onClick={() => setPagesOpen((v) => !v)}
+                  {viewResult.keywords.length > 10 ? (
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => setShowAllKeywords((v) => !v)}
+                    >
+                      {showAllKeywords
+                        ? "Voir moins"
+                        : `Voir plus (${viewResult.keywords.length - 10})`}
+                      <ChevronDown
+                        className={cn(
+                          "size-4 transition-transform duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)]",
+                          showAllKeywords && "rotate-180",
+                        )}
                       />
-                    </Flex>
-                    {pagesOpen ? (
-                      <Stack gap={2} as="ul" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                        {viewResult.pageSamples.map((page) => (
-                          <Box as="li" key={page.url}>
-                            <Text size={1}>
-                              <a
-                                href={page.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                {page.title}
-                              </a>
-                            </Text>
-                          </Box>
-                        ))}
-                      </Stack>
-                    ) : null}
-                  </Stack>
-                </Card>
-              ) : null}
+                    </button>
+                  ) : null}
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
 
-              {viewResult && viewResult.warnings.length > 0 ? (
-                <Stack gap={2} as="ul" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                  {viewResult.warnings.map((w) => (
-                    <Box as="li" key={w}>
-                      <Text size={1} muted>
-                        · {w}
-                      </Text>
-                    </Box>
+            {viewResult && viewResult.blogPosts.length > 0 ? (
+              <div>
+                <SectionLabel>Blog détecté</SectionLabel>
+                <ul className="mt-4 space-y-2">
+                  {viewResult.blogPosts.slice(0, 6).map((page) => (
+                    <li key={page.url} className="text-sm">
+                      <a
+                        href={page.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-foreground underline-offset-4 transition-colors hover:text-[var(--ember)] hover:underline"
+                      >
+                        {page.title}
+                      </a>
+                    </li>
                   ))}
-                </Stack>
-              ) : null}
-            </Stack>
-          ) : null}
-        </Stack>
-      </Container>
+                </ul>
+              </div>
+            ) : null}
+
+            {analyzing && !viewResult ? (
+              <PagesSkeleton />
+            ) : viewResult && viewResult.pageSamples.length > 0 ? (
+              <Collapsible open={pagesOpen} onOpenChange={setPagesOpen}>
+                <div className="flex items-center justify-between gap-3">
+                  <SectionLabel>Pages</SectionLabel>
+                  <CollapsibleTrigger className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                    {pagesOpen ? "Masquer" : "Afficher"}
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)]",
+                        pagesOpen && "rotate-180",
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <Separator className="my-3" />
+                  <ul className="space-y-2">
+                    {viewResult.pageSamples.map((page) => (
+                      <li key={page.url} className="text-sm">
+                        <a
+                          href={page.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-foreground underline-offset-4 transition-colors hover:text-[var(--ember)] hover:underline"
+                        >
+                          {page.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
+
+            {viewResult && viewResult.warnings.length > 0 ? (
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {viewResult.warnings.map((w) => (
+                  <li key={w}>· {w}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
+      </main>
     </>
   );
 }

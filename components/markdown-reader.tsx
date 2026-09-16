@@ -1,21 +1,17 @@
 /**
  * Affiche un brouillon markdown : vue prose ou brut, avec copie presse-papiers.
- * Primitives @sanity/ui.
  */
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Box, Button, Card, Flex, Stack } from "@sanity/ui";
-import { Code } from "@sanity/ui/code";
-import { ClipboardIcon } from "@sanity/icons/Clipboard";
-import { CodeIcon } from "@sanity/icons/Code";
-import { DocumentTextIcon } from "@sanity/icons/DocumentText";
+import { cn } from "@/lib/utils";
 
 type Props = {
   markdown: string;
+  className?: string;
 };
 
-export function MarkdownReader({ markdown }: Props) {
+export function MarkdownReader({ markdown, className }: Props) {
   const [showRaw, setShowRaw] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -30,39 +26,33 @@ export function MarkdownReader({ markdown }: Props) {
   }
 
   return (
-    <Stack gap={3} marginTop={3}>
-      <Flex gap={2} wrap="wrap">
-        <Button
-          mode="ghost"
-          fontSize={1}
-          padding={2}
-          text={showRaw ? "Vue lisible" : "Markdown brut"}
-          icon={showRaw ? DocumentTextIcon : CodeIcon}
+    <div className={cn("mt-4", className)}>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           onClick={() => setShowRaw((v) => !v)}
-        />
-        <Button
-          mode="ghost"
-          fontSize={1}
-          padding={2}
-          text={copied ? "Copié" : "Copier"}
-          icon={ClipboardIcon}
+        >
+          {showRaw ? "Vue lisible" : "Markdown brut"}
+        </button>
+        <button
+          type="button"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           onClick={() => void copyMarkdown()}
-        />
-      </Flex>
+        >
+          {copied ? "Copié" : "Copier"}
+        </button>
+      </div>
 
       {showRaw ? (
-        <Card border padding={3} radius={2} tone="transparent">
-          <Code language="markdown" size={1}>
-            {markdown}
-          </Code>
-        </Card>
+        <pre className="draft-markdown overflow-x-auto whitespace-pre-wrap rounded-md border border-border bg-muted/50 p-4 text-sm leading-relaxed text-foreground">
+          {markdown}
+        </pre>
       ) : (
-        <Card border padding={[3, 4]} radius={2} tone="transparent">
-          <Box className="draft-prose">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
-          </Box>
-        </Card>
+        <article className="draft-prose rounded-md border border-border bg-card/80 p-4 sm:p-5">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+        </article>
       )}
-    </Stack>
+    </div>
   );
 }

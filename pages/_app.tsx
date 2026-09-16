@@ -1,22 +1,35 @@
 /**
- * App Pages Router : Sanity UI ThemeProvider + stylesheet (docs @sanity/ui).
- * @see https://www.sanity.io/ui/docs
- * @see https://www.sanity.io/docs/app-sdk/sanity-ui-sdk
+ * App Pages Router : polices marketing (géométrique + mono) et styles globaux.
+ * Direction visuelle = sanity.io homepage (éditorial), pas @sanity/ui Studio.
  */
-import "@sanity/ui/styles.css";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
-import { Card, ThemeProvider } from "@sanity/ui";
-import { buildTheme } from "@sanity/ui/theme";
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 
-const theme = buildTheme();
+const sans = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
+});
+
+const heading = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  weight: ["400", "500", "600", "700"],
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500"],
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <ThemeProvider scheme="light" theme={theme}>
-      <Card height="fill" tone="transparent" style={{ minHeight: "100vh" }}>
-        <Component {...pageProps} />
-      </Card>
-    </ThemeProvider>
+    <div
+      className={`${sans.variable} ${heading.variable} ${mono.variable} min-h-screen font-sans`}
+    >
+      <Component {...pageProps} />
+    </div>
   );
 }
