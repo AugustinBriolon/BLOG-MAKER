@@ -4,6 +4,7 @@
  * Important : le type doit exister dans le schéma Studio, sinon le document
  * est dans le dataset mais invisible dans Structure.
  */
+import type { IdentifiedSanityDocumentStub } from "@sanity/client";
 import {
   createSanityWriteClient,
   type SanityWriteCredentials,
@@ -107,7 +108,7 @@ export async function publishDraftToSanity(
   const slug = input.slug || slugify(input.title);
   const id = `${documentType}.${slug}`;
 
-  const doc: Record<string, unknown> = {
+  const doc: IdentifiedSanityDocumentStub = {
     _id: id,
     _type: documentType,
     title: input.title,
