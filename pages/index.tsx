@@ -3,7 +3,7 @@
  * UI marketing (sanity.io homepage), pas chrome Studio / @sanity/ui.
  */
 import Head from "next/head";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { ChevronDown } from "lucide-react";
 import type { AnalyzeResult } from "@/lib/analyze";
@@ -11,6 +11,11 @@ import type { TopicSuggestion } from "@/lib/ai/topics";
 import { NumberFlowValue } from "@/components/number-flow-value";
 import { StatusSwap } from "@/components/status-swap";
 import { MarkdownReader } from "@/components/markdown-reader";
+import {
+  SanityConnectModal,
+  type PublishMeta,
+  type SanityModalStatus,
+} from "@/components/sanity-connect-modal";
 // Mis de côté pour V1 Sanity — plan volume réactivable plus tard.
 // import {
 //   EditorialVolumePlan,
@@ -25,6 +30,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  getSanitySessionCredentials,
+  setSanitySessionCredentials,
+  type SanitySessionCredentials,
+} from "@/lib/sanity/session-credentials";
 import { cn } from "@/lib/utils";
 
 type UiError = { message: string; action?: string };
@@ -144,12 +154,12 @@ function DomainSkeleton() {
 
 function TopicsSkeleton({ withLabel = false }: { withLabel?: boolean }) {
   return (
-    <div className="space-y-3" aria-busy="true">
+    <div className="space-y-[var(--space-2)]" aria-busy="true">
       {withLabel ? <Skeleton className="h-3 w-14" /> : null}
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="space-y-2 rounded-md py-2"
+          className="topic-card-skel space-y-2"
           style={{ opacity: 1 - i * 0.12 }}
         >
           <Skeleton className="h-4 w-14" />
@@ -312,10 +322,18 @@ export default function Home() {
   const [draftMarkdown, setDraftMarkdown] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<UiError | null>(null);
   const [publishError, setPublishError] = useState<UiError | null>(null);
-  const [publishId, setPublishId] = useState<string | null>(null);
+  const [publishMeta, setPublishMeta] = useState<PublishMeta | null>(null);
+  const [sanityModalOpen, setSanityModalOpen] = useState(false);
+  const [publishViaModal, setPublishViaModal] = useState(false);
+  const [sanityCredentials, setSanityCredentials] =
+    useState<SanitySessionCredentials | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [keywordsOpen, setKeywordsOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+
+  useEffect(() => {
+    setSanityCredentials(getSanitySessionCredentials());
+  }, []);
 
   const viewResult = result ?? (demoDraft ? DEMO_RESULT : null);
   const viewTopics = topics.length > 0 ? topics : demoDraft ? DEMO_TOPICS : [];
@@ -332,7 +350,7 @@ export default function Home() {
     setDraftMarkdown(null);
     setDraftError(null);
     setPublishError(null);
-    setPublishId(null);
+    setPublishMeta(null);
 
     try {
       const response = await fetch("/api/topics", {
@@ -399,7 +417,7 @@ export default function Home() {
     setDraftError(null);
     setDraftMarkdown(null);
     setPublishError(null);
-    setPublishId(null);
+    setPublishMeta(null);
 
     try {
       const response = await fetch("/api/draft", {
@@ -450,12 +468,14 @@ export default function Home() {
     }
   }
 
-  async function publishToSanity() {
+  const publishId = publishMeta?.id ?? null;
+
+  async function publishToSanity(credentials: SanitySessionCredentials) {
     if (!viewSelectedTopic || !viewDraftMarkdown) return;
 
     setPublishing(true);
     setPublishError(null);
-    setPublishId(null);
+    setPublishMeta(null);
 
     try {
       const response = await fetch("/api/sanity/publish", {
@@ -464,12 +484,23 @@ export default function Home() {
         body: JSON.stringify({
           title: viewSelectedTopic,
           markdown: viewDraftMarkdown,
+          documentType: credentials.documentType,
+          bodyField: credentials.bodyField,
+          credentials: {
+            projectId: credentials.projectId,
+            dataset: credentials.dataset,
+            writeToken: credentials.writeToken,
+          },
         }),
       });
 
       const data = (await response.json()) as {
         ok?: boolean;
         id?: string;
+        documentType?: string;
+        bodyField?: string;
+        projectId?: string;
+        dataset?: string;
         error?: string;
         action?: string;
         unavailable?: boolean;
@@ -480,13 +511,19 @@ export default function Home() {
           message: data.error || "Publication Sanity impossible.",
           action:
             data.action ||
-            "Vérifiez NEXT_PUBLIC_SANITY_PROJECT_ID et SANITY_API_WRITE_TOKEN.",
+            "Vérifiez le type de document et le champ corps dans votre schéma Studio.",
         });
         return;
       }
 
-      if (data.id) {
-        setPublishId(data.id);
+      if (data.id && data.documentType && data.bodyField && data.projectId) {
+        setPublishMeta({
+          id: data.id,
+          documentType: data.documentType,
+          bodyField: data.bodyField,
+          projectId: data.projectId,
+          dataset: data.dataset || credentials.dataset,
+        });
       }
     } catch {
       setPublishError({
@@ -497,6 +534,42 @@ export default function Home() {
       setPublishing(false);
     }
   }
+
+  function requestPublish() {
+    if (!viewSelectedTopic || !viewDraftMarkdown) return;
+    setPublishError(null);
+    setPublishViaModal(true);
+    setSanityCredentials(getSanitySessionCredentials());
+    setSanityModalOpen(true);
+  }
+
+  function handleSanityConnect(credentials: SanitySessionCredentials) {
+    setSanitySessionCredentials(credentials);
+    setSanityCredentials(credentials);
+    setPublishViaModal(true);
+    void publishToSanity(credentials);
+  }
+
+  function openSanityModal() {
+    setPublishError(null);
+    setPublishViaModal(true);
+    setSanityCredentials(getSanitySessionCredentials());
+    setSanityModalOpen(true);
+  }
+
+  function closeSanityModal() {
+    if (publishing) return;
+    setSanityModalOpen(false);
+    setPublishViaModal(false);
+  }
+
+  const sanityModalStatus: SanityModalStatus = !sanityModalOpen
+    ? "form"
+    : publishing && publishViaModal
+      ? "publishing"
+      : publishViaModal && publishId && !publishError
+        ? "success"
+        : "form";
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -519,7 +592,9 @@ export default function Home() {
     setDraftMarkdown(null);
     setDraftError(null);
     setPublishError(null);
-    setPublishId(null);
+    setPublishMeta(null);
+    setSanityModalOpen(false);
+    setPublishViaModal(false);
     setShowAllKeywords(false);
     setKeywordsOpen(false);
     setPagesOpen(false);
@@ -585,20 +660,20 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-24 pt-14 sm:px-8 sm:pb-16 sm:pt-20">
+      <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col px-5 pb-24 pt-14 sm:px-8 sm:pb-16 sm:pt-[var(--space-5)]">
         <header className="animate-rise">
           <p className="font-mono-label text-muted-foreground">for Sanity</p>
-          <h1 className="font-heading mt-2 text-5xl font-semibold tracking-tight text-foreground sm:text-6xl">
+          <h1 className="font-heading mt-[var(--space-1)] text-5xl font-semibold tracking-tight text-foreground sm:text-6xl">
             Blog Maker
           </h1>
-          <p className="mt-3 max-w-md text-base text-muted-foreground sm:text-lg">
+          <p className="mt-[var(--space-2)] max-w-md text-base text-muted-foreground sm:text-lg">
             Crawl SEO, sujets IA et brouillon — prêts à publier sur Sanity.
           </p>
         </header>
 
         <form
           onSubmit={onSubmit}
-          className="analyze-form animate-rise-delay mt-10 flex w-full flex-col gap-3 sm:flex-row sm:items-center"
+          className="analyze-form animate-rise-delay mt-[var(--space-4)] flex w-full flex-col gap-3 sm:flex-row sm:items-center"
         >
           <label className="sr-only" htmlFor="site-url">
             URL du site
@@ -612,7 +687,7 @@ export default function Home() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             disabled={analyzing}
-            className="h-12 flex-1 rounded-full border-border bg-card/90 px-5 text-base shadow-none"
+            className="h-12 flex-1 rounded-full border-[1.5px] border-border bg-card px-5 text-base shadow-none"
           />
           <button
             type="submit"
@@ -638,16 +713,16 @@ export default function Home() {
         ) : null}
 
         {showWorkspace ? (
-          <section className="mt-12 space-y-10">
+          <section className="mt-[var(--space-5)] space-y-[var(--space-4)]">
             {analyzing && !viewResult ? (
               <DomainSkeleton />
             ) : viewResult ? (
               <div>
                 <SectionLabel>Domaine</SectionLabel>
-                <p className="font-heading mt-2 text-2xl font-semibold leading-snug text-foreground sm:text-3xl">
+                <p className="font-heading mt-[var(--space-1)] text-2xl font-semibold leading-snug text-foreground sm:text-3xl">
                   {viewResult.domainGuess}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-[var(--space-2)] flex flex-wrap gap-2">
                   <Badge variant="secondary">
                     {viewResult.pagesAnalyzed} pages
                   </Badge>
@@ -678,30 +753,27 @@ export default function Home() {
               <div>
                 <SectionLabel>Sujets</SectionLabel>
                 {topicsLoading ? (
-                  <div className="mt-4">
+                  <div className="mt-[var(--space-2)]">
                     <TopicsSkeleton />
                   </div>
                 ) : viewTopics.length > 0 ? (
-                  <ul className="mt-3 space-y-1">
+                  <ul className="mt-[var(--space-2)] space-y-[var(--space-2)]">
                     {viewTopics.map((topic) => {
                       const selected = viewSelectedTopic === topic.title;
                       return (
                         <li key={topic.title}>
                           <button
                             type="button"
+                            data-selected={selected ? "true" : undefined}
+                            aria-pressed={selected}
                             onClick={() => {
                               setSelectedTopic(topic.title);
                               setDraftMarkdown(null);
                               setDraftError(null);
                               setPublishError(null);
-                              setPublishId(null);
+                              setPublishMeta(null);
                             }}
-                            className={cn(
-                              "w-full rounded-lg px-3.5 py-3 text-left transition-colors",
-                              selected
-                                ? "bg-foreground text-background"
-                                : "hover:bg-muted",
-                            )}
+                            className="topic-card"
                           >
                             <div className="flex flex-wrap items-center gap-2">
                               <span
@@ -755,7 +827,7 @@ export default function Home() {
                 )}
 
                 {viewTopics.length > 0 ? (
-                  <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                  <div className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-center">
                     <button
                       type="button"
                       className="button-02 button-02--compact"
@@ -777,7 +849,7 @@ export default function Home() {
                 ) : null}
 
                 {draftLoading || viewDraftMarkdown || draftError ? (
-                  <div className="mt-8">
+                  <div className="mt-[var(--space-4)]">
                     <SectionLabel>Brouillon</SectionLabel>
                     {draftLoading ? (
                       <DraftSkeleton />
@@ -789,42 +861,103 @@ export default function Home() {
                     ) : viewDraftMarkdown ? (
                       <>
                         <MarkdownReader markdown={viewDraftMarkdown} />
-                        <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
-                          <button
-                            type="button"
-                            className="button-02 button-02--compact"
-                            disabled={publishing}
-                            onClick={() => void publishToSanity()}
-                            aria-label="Publier sur Sanity"
-                          >
-                            <div className="inner">
-                              {publishing
-                                ? "Publication…"
-                                : publishId
-                                  ? "Republier"
-                                  : "Publier"}
+                        <div className="mt-4 flex flex-col gap-3">
+                          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                            <button
+                              type="button"
+                              className="button-02 button-02--compact"
+                              disabled={publishing}
+                              onClick={requestPublish}
+                              aria-label="Publier sur Sanity"
+                            >
+                              <div className="inner">
+                                {publishing
+                                  ? "Publication…"
+                                  : publishId
+                                    ? "Republier"
+                                    : "Publier"}
+                              </div>
+                              <div className="circle" aria-hidden="true">
+                                <span>→</span>
+                              </div>
+                            </button>
+                            {sanityCredentials && !publishing ? (
+                              <p className="text-xs text-muted-foreground">
+                                {sanityCredentials.projectId}
+                                <span className="text-muted-foreground/60">
+                                  {" "}
+                                  ·{" "}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="underline-offset-3 transition-colors hover:text-foreground hover:underline"
+                                  onClick={openSanityModal}
+                                >
+                                  Changer de projet
+                                </button>
+                              </p>
+                            ) : !publishing && !publishId ? (
+                              <p className="text-xs text-muted-foreground">
+                                Connexion Sanity à la publication.
+                              </p>
+                            ) : null}
+                          </div>
+
+                          {publishing && !publishViaModal ? (
+                            <div
+                              className="flex items-center gap-2 text-sm text-muted-foreground"
+                              aria-live="polite"
+                            >
+                              <span
+                                className="inline-block size-3.5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground"
+                                aria-hidden
+                              />
+                              Publication vers Sanity…
                             </div>
-                            <div className="circle" aria-hidden="true">
-                              <span>→</span>
+                          ) : null}
+
+                          {publishMeta && !publishing ? (
+                            <div
+                              className="rounded-xl border-[1.5px] border-border bg-card px-3.5 py-3"
+                              role="status"
+                              aria-live="polite"
+                            >
+                              <p className="text-sm font-medium text-foreground">
+                                Publié ·{" "}
+                                <span className="font-mono text-xs font-normal text-muted-foreground">
+                                  {publishMeta.documentType}
+                                </span>
+                              </p>
+                              <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                                {publishMeta.id}
+                              </p>
+                              <p className="mt-1.5 text-xs text-muted-foreground">
+                                Champs : title, slug, {publishMeta.bodyField},
+                                publishedAt — dataset{" "}
+                                <code className="font-mono">
+                                  {publishMeta.dataset}
+                                </code>
+                                .{" "}
+                                <a
+                                  href={`https://www.sanity.io/manage/project/${publishMeta.projectId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-foreground underline-offset-3 hover:underline"
+                                >
+                                  Ouvrir Manage
+                                </a>
+                              </p>
                             </div>
-                          </button>
-                          {publishId ? (
-                            <p className="font-mono text-xs text-muted-foreground">
-                              {publishId}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Stub publish → Sanity Content Lake.
-                            </p>
-                          )}
+                          ) : null}
+
+                          {publishError && !sanityModalOpen ? (
+                            <StatusBlock
+                              message={publishError.message}
+                              action={publishError.action}
+                              tone="danger"
+                            />
+                          ) : null}
                         </div>
-                        {publishError ? (
-                          <StatusBlock
-                            message={publishError.message}
-                            action={publishError.action}
-                            tone="danger"
-                          />
-                        ) : null}
                       </>
                     ) : null}
                   </div>
@@ -961,6 +1094,18 @@ export default function Home() {
           </section>
         ) : null}
       </main>
+
+      <SanityConnectModal
+        open={sanityModalOpen}
+        status={sanityModalStatus}
+        initial={sanityCredentials}
+        publishMeta={publishMeta}
+        error={
+          sanityModalOpen && publishError ? publishError.message : null
+        }
+        onClose={closeSanityModal}
+        onSubmit={handleSanityConnect}
+      />
     </>
   );
 }

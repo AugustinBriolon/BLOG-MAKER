@@ -45,7 +45,7 @@ export function EditorialVolumePlan() {
   return (
     <Card
       size="sm"
-      className="editorial-volume-plan bg-transparent ring-0"
+      className="editorial-volume-plan border-0 bg-transparent"
     >
       <CardHeader className="gap-1">
         <CardTitle className="font-heading text-lg font-semibold tracking-tight">

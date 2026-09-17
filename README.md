@@ -10,9 +10,9 @@ SaaS de génération d’articles de blog pour renforcer le trafic et le SEO d�
 | --- | --- |
 | Analyse → sujets → brouillon | ✅ POC |
 | Plan éditorial volume | ⏸ Parké (composant conservé, appel commenté) |
-| Publish Sanity | 🧩 Stub API + bouton UI « Publier » |
+| Publish Sanity | ✅ Modal credentials (session) + API |
 
-UI : custom + shadcn, Space Grotesk + IBM Plex Mono, craft `.button-02`. Publish : `POST /api/sanity/publish` avec `{ title, markdown }` (`NEXT_PUBLIC_SANITY_PROJECT_ID` + `SANITY_API_WRITE_TOKEN`).
+UI : custom + shadcn, Space Grotesk + IBM Plex Mono, craft `.button-02`. Publish : modal → `POST /api/sanity/publish` avec `{ title, markdown, credentials }` (credentials en `sessionStorage`, pas dans `.env`).
 
 ## Pitch produit (court)
 
@@ -29,11 +29,11 @@ Next.js **Pages Router** (App Router non utilisé pour ce POC).
 | `pages/api/analyze.ts` | Crawl + extraction + mots-clés (+ stream NDJSON optionnel) |
 | `pages/api/topics.ts` | 1–3 titres via AI Gateway |
 | `pages/api/draft.ts` | Brouillon markdown via AI Gateway |
-| `pages/api/sanity/publish.ts` | Stub publish → document Sanity |
+| `pages/api/sanity/publish.ts` | Publish → document Sanity (credentials requête) |
 | `lib/analyze/*` | Pipeline SEO sans LLM |
 | `lib/ai/*` | Prompts / appels sujets & brouillon |
-| `lib/sanity/*` | Client `@sanity/client`, env, publish stub |
-| `components/*` | Markdown reader, status, Number Flow, plan volume (parké), shadcn |
+| `lib/sanity/*` | Client `@sanity/client`, session credentials, publish |
+| `components/*` | Markdown reader, modal Sanity, status, Number Flow, plan volume (parké), shadcn |
 
 ## Pipeline
 
@@ -50,7 +50,7 @@ URL
  → domain guess
  → [optionnel] topics IA
  → [optionnel] draft IA
- → [optionnel] publish Sanity (stub)
+ → [optionnel] publish Sanity (modal credentials)
 ```
 
 ### Ciblage des pages
@@ -88,19 +88,17 @@ Copier `.env.example` vers `.env.local` :
 | `AI_GATEWAY_API_KEY` | pour topics/draft | Clé Vercel AI Gateway |
 | `AI_TOPICS_MODEL` | non | Override modèle sujets (défaut nano) |
 | `AI_DRAFT_MODEL` | non | Override modèle brouillon (défaut nano) |
-| `NEXT_PUBLIC_SANITY_PROJECT_ID` | pour publish | Project ID Sanity |
-| `NEXT_PUBLIC_SANITY_DATASET` | non | Dataset (défaut `production`) |
-| `NEXT_PUBLIC_SANITY_API_VERSION` | non | Version API (défaut `2025-01-01`) |
-| `SANITY_API_WRITE_TOKEN` | pour publish | Token Editor/Write (server-only) |
-| `SANITY_API_READ_TOKEN` | non | Token lecture CDN / preview |
 
-### Configurer Sanity (rapide)
+### Publier vers Sanity
 
-1. Créer un projet sur [sanity.io/manage](https://www.sanity.io/manage)
-2. Copier le **Project ID** → `NEXT_PUBLIC_SANITY_PROJECT_ID`
-3. Créer un token **Editor** → `SANITY_API_WRITE_TOKEN` (jamais exposé au client)
-4. Aligner le type de document Studio (`post` par défaut) avec des champs `title`, `slug`, `bodyMarkdown` (ou adapter `lib/sanity/publish.ts`)
-5. Tester : `POST /api/sanity/publish` avec `{ "title": "…", "markdown": "…" }`
+Les credentials **ne vont pas** dans `.env`. Au clic **Publier** :
+
+1. Modal → Project ID, dataset, token **Editor**, **type de document** (ex. `post`) et **champ corps** (ex. `bodyMarkdown`)
+2. Bouton « Charger depuis le dataset » pour lister les `_type` déjà présents
+3. `createOrReplace` écrit : `title`, `slug`, `{bodyField}`, `publishedAt`
+4. Le type **doit exister dans le schéma Studio** — sinon le document est dans le dataset mais **invisible** dans Structure (vérifier avec Vision : `*[_id == "…"][0]`)
+
+V1 : champ corps = string/text markdown. Pas de Portable Text (`body` en blocks) pour l’instant.
 
 ## Lancer en local
 
@@ -127,14 +125,14 @@ curl -s -X POST http://localhost:3000/api/analyze \
 | --- | --- |
 | `lib/analyze/` | robots, sitemap, http poli, extract, keywords, priorisation URL, blog-posts |
 | `lib/ai/` | topics, draft, contexte date (anti spam année) |
-| `lib/sanity/` | env, client `@sanity/client`, publish stub |
-| `components/` | lecteur markdown, status swap, Number Flow, plan volume (parké), shadcn |
+| `lib/sanity/` | client, session credentials, publish |
+| `components/` | lecteur markdown, modal Sanity, status swap, Number Flow, plan volume (parké), shadcn |
 | `pages/api/` | `analyze`, `topics`, `draft`, `sanity/publish` |
 | `styles/globals.css` | tokens marketing + `.button-02` + prose / status-swap |
 
 ## Limites / scope POC
 
-- Pas d’auth, billing, ni sync CMS complète (stub publish seulement)
+- Pas d’auth produit, billing, ni OAuth Sanity (credentials modal / session)
 - Crawl borné (≈12 pages), polite, pas un crawler exhaustif
 - Domain guess heuristique (pas de taxonomie métier)
 - Qualité topics/draft dépend du modèle + clé Gateway

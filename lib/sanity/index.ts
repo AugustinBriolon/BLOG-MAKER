@@ -3,7 +3,12 @@
  * Usage serveur : import depuis pages/api/* uniquement pour les mutations.
  */
 export { getSanityEnv } from "./env";
-export { getSanityReadClient, getSanityWriteClient } from "./client";
+export {
+  getSanityReadClient,
+  getSanityWriteClient,
+  createSanityWriteClient,
+  type SanityWriteCredentials,
+} from "./client";
 export {
   publishDraftToSanity,
   type PublishDraftInput,

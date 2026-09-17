@@ -1,9 +1,16 @@
 /**
- * Client Sanity minimal pour le POC « Blog Maker for Sanity ».
- * Lecture CDN si configuré ; écriture uniquement avec SANITY_API_WRITE_TOKEN.
+ * Client Sanity minimal pour la V1 Blog Maker.
+ * Lecture CDN (env) ; écriture via env ou credentials de requête (éphémères).
  */
 import { createClient, type SanityClient } from "@sanity/client";
 import { getSanityEnv } from "./env";
+
+export type SanityWriteCredentials = {
+  projectId: string;
+  dataset: string;
+  writeToken: string;
+  apiVersion?: string;
+};
 
 let cachedRead: SanityClient | null = null;
 let cachedWrite: SanityClient | null = null;
@@ -25,7 +32,7 @@ export function getSanityReadClient(): SanityClient | null {
 }
 
 /**
- * Client écriture (mutations). Server-only.
+ * Client écriture (mutations) depuis l’env serveur.
  * Retourne null si projectId ou write token manquant.
  */
 export function getSanityWriteClient(): SanityClient | null {
@@ -41,4 +48,21 @@ export function getSanityWriteClient(): SanityClient | null {
     token: env.writeToken,
   });
   return cachedWrite;
+}
+
+/**
+ * Client écriture éphémère (credentials fournis à la requête).
+ * Pas de cache — chaque appel crée un client neuf.
+ */
+export function createSanityWriteClient(
+  credentials: SanityWriteCredentials,
+): SanityClient {
+  const env = getSanityEnv();
+  return createClient({
+    projectId: credentials.projectId,
+    dataset: credentials.dataset || "production",
+    apiVersion: credentials.apiVersion?.trim() || env.apiVersion,
+    useCdn: false,
+    token: credentials.writeToken,
+  });
 }

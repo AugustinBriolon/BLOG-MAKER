@@ -1,26 +1,37 @@
 /**
- * Stub publish : après génération d’un brouillon markdown, créer / patcher
- * un document Sanity (ex. type `post`). À brancher depuis une API route
- * dédiée une fois le schéma Studio aligné.
+ * Publish : crée / remplace un document Sanity selon le type + champ corps choisis.
  *
- * Flux prévu :
- * 1. UI : brouillon markdown prêt
- * 2. POST /api/sanity/publish { title, markdown, slug? }
- * 3. createOrReplace / create document `post` avec body Portable Text ou markdown
+ * Important : le type doit exister dans le schéma Studio, sinon le document
+ * est dans le dataset mais invisible dans Structure.
  */
-import { getSanityWriteClient } from "./client";
-import { getSanityEnv } from "./env";
+import {
+  createSanityWriteClient,
+  type SanityWriteCredentials,
+} from "./client";
 
 export type PublishDraftInput = {
   title: string;
   markdown: string;
-  /** Type de document Studio (défaut `post`). */
-  documentType?: string;
+  credentials: SanityWriteCredentials;
+  /** Type de document Studio (requis). */
+  documentType: string;
+  /** Nom du champ qui reçoit le markdown (ex. bodyMarkdown, body). */
+  bodyField: string;
   slug?: string;
 };
 
 export type PublishDraftResult =
-  | { ok: true; id: string; unavailable?: never; error?: never; action?: never }
+  | {
+      ok: true;
+      id: string;
+      documentType: string;
+      bodyField: string;
+      projectId: string;
+      dataset: string;
+      unavailable?: never;
+      error?: never;
+      action?: never;
+    }
   | {
       ok: false;
       unavailable: true;
@@ -39,49 +50,79 @@ function slugify(title: string): string {
     .slice(0, 96);
 }
 
+function isSafeFieldName(name: string): boolean {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+}
+
 /**
  * Publie un brouillon vers Sanity (createOrReplace).
- * Si Sanity n’est pas configuré, renvoie `unavailable` (échec gracieux).
  */
 export async function publishDraftToSanity(
   input: PublishDraftInput,
 ): Promise<PublishDraftResult> {
-  const env = getSanityEnv();
-  if (!env.configured) {
+  const { credentials } = input;
+  const projectId = credentials.projectId?.trim() ?? "";
+  const writeToken = credentials.writeToken?.trim() ?? "";
+  const dataset = credentials.dataset?.trim() || "production";
+  const documentType = input.documentType?.trim() ?? "";
+  const bodyField = input.bodyField?.trim() ?? "";
+
+  if (!projectId || !writeToken) {
     return {
       ok: false,
       unavailable: true,
-      error: "Sanity non configuré.",
+      error: "Credentials Sanity manquants.",
       action:
-        "Ajoutez NEXT_PUBLIC_SANITY_PROJECT_ID (et SANITY_API_WRITE_TOKEN) dans .env.local.",
+        "Indiquez le Project ID et un token Editor dans la modal de connexion.",
     };
   }
 
-  const client = getSanityWriteClient();
-  if (!client) {
+  if (!documentType || !isSafeFieldName(documentType)) {
     return {
       ok: false,
       unavailable: true,
-      error: "Token d’écriture Sanity absent.",
-      action: "Ajoutez SANITY_API_WRITE_TOKEN (Editor) dans .env.local.",
+      error: "Type de document invalide.",
+      action:
+        "Utilisez le nom exact du type Studio (ex. post, article) — sans espaces.",
     };
   }
 
-  const type = input.documentType || "post";
-  const slug = input.slug || slugify(input.title);
-  const id = `${type}.${slug}`;
+  if (!bodyField || !isSafeFieldName(bodyField)) {
+    return {
+      ok: false,
+      unavailable: true,
+      error: "Nom de champ corps invalide.",
+      action:
+        "Indiquez le champ texte/markdown du schéma (ex. bodyMarkdown, body).",
+    };
+  }
 
-  // Corps markdown brut pour le POC — remplacer par Portable Text
-  // (@portabletext/block-tools) quand le schéma Studio est figé.
-  const doc = {
+  const client = createSanityWriteClient({
+    projectId,
+    dataset,
+    writeToken,
+    apiVersion: credentials.apiVersion,
+  });
+
+  const slug = input.slug || slugify(input.title);
+  const id = `${documentType}.${slug}`;
+
+  const doc: Record<string, unknown> = {
     _id: id,
-    _type: type,
+    _type: documentType,
     title: input.title,
     slug: { _type: "slug", current: slug },
-    bodyMarkdown: input.markdown,
+    [bodyField]: input.markdown,
     publishedAt: new Date().toISOString(),
   };
 
   const result = await client.createOrReplace(doc);
-  return { ok: true, id: result._id };
+  return {
+    ok: true,
+    id: result._id,
+    documentType,
+    bodyField,
+    projectId,
+    dataset,
+  };
 }
